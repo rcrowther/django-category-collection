@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+
+{% block html_title %} {{ context.html_title }} {% endblock %}
+
+{% block title %} Are you sure? {% endblock %}
+
+{% block content %}
+  <form  id="deleteconfirm-form" action={{ context.action }} method="post">
+    {% csrf_token %}
+
+
+    {{ context.message }}
+    
+    <ul class="actions">
+    <li><input value="Yes, I'm sure" type="submit" class="button  alert"></li>
+    <li><a href="#" class="button default">No, take me back</a></li>
+    </ul>
+  </form>
+{% endblock %}

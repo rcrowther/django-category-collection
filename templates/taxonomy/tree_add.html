@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+
+{% block html_title %} taxonomy list {% endblock %}
+
+{% block content %}
+  <form  id="taxonomylist-form" action="/your-name/" method="post">
+    {% csrf_token %}
+    <table>
+      {{ form.as_table }}
+    </table>
+    <input type="submit" value="Submit" />
+  </form>
+{% endblock %}

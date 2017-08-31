@@ -1,0 +1,174 @@
+* {
+margin: 0;
+padding: 0;
+font-weight: normal;
+}
+
+body {
+color: #333;
+font-size: 13px;
+font-family: "Roboto","Lucida Grande","DejaVu Sans","Bitstream Vera Sans",Verdana,Arial,sans-serif;
+}
+
+article {
+width: 600px;
+margin: 20px auto;
+}
+
+article > header > h1 {
+font-weight: 300;
+color: #666;
+}
+
+a {
+font-weight:bold;
+text-decoration: none;
+}
+
+a:link, a:visited {
+    color: #447e9b;
+}
+
+a:focus, a:hover {
+    color: #036;
+}
+
+table {
+width: 100%;
+border-color: #ccc;
+border-collapse: collapse;
+}
+
+thead {
+font-size: 11px;
+text-align: left;
+background-color: #eee;
+}
+
+tr > th, tr > td {
+padding: 8px;
+}
+
+/* content clear */
+.admin-list, .admin-table {
+margin-top: 20px;
+}
+
+.admin-list {
+ list-style: none;
+}
+
+.admin-list > li,  .admin-table tr {
+overflow: hidden;
+padding: 10px;
+border-bottom: 1px solid #eee;
+}
+
+.admin-table tr:nth-child(even) {
+   background: #f9f9f9;
+}
+
+
+li > label {
+font-weight: bold;
+color: #000;
+display: inline-block;
+vertical-align: middle;
+width: 160px;
+}
+
+
+.helptext {
+  display: block;
+  font-size: 11px;
+  color: #999;
+}
+
+/* messages */
+/* mainly lifted from admin */
+
+ul.messagelist > li {
+    display: block;
+    list-style-type: square;
+    font-weight: 400;
+    font-size: 13px;
+    padding: 10px 10px 10px 65px;
+    margin: 0 0 10px 0;
+    background: #dfd;
+    border: 1px solid #cec;
+    color: #333;
+}
+
+ul.messagelist > li.warning {
+  background: #ffc;
+  border: 1px solid #eeb;
+}
+
+ul.messagelist > li.error {
+  background: #ffefef;
+  border: 1px solid #eedede;
+}
+
+
+
+/* toolbar */
+ul.tools {
+ list-style: none;
+padding: 12px 14px;
+float:right;
+}
+
+.tools a {
+font-size: 11px;
+font-weight:400;
+padding: 6px 32px;
+border-radius: 24px;
+text-transform: uppercase;
+color: #fff;
+background-color: #999;
+}
+
+.tools a:hover {
+background-color: #205067;
+}
+
+ul.actions {
+ list-style: none;
+padding: 12px 14px;
+background: #f8f8f8;
+border: 1px solid #eee;
+border-radius: 4px;
+text-align: right;
+overflow: hidden;
+}
+
+
+ul.actions li {
+display: inline-block;
+margin-right: 12px;
+}
+
+.actions .button{
+padding: 10px 15px;
+border: none;
+text-transform: uppercase;
+border-radius: 4px;
+color: #fff;
+}
+
+
+.default {
+    background: #417690;
+}
+.default:hover {
+    background: #205067;
+}
+
+
+.alert {
+background-color: #ba2121;
+}
+
+.alert:hover {
+background-color: #a41515;
+}

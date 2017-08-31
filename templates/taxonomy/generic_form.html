@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+
+{% block html_title %} {{ context.html_title }} {% endblock %}
+
+{% block title %} {{ context.title }} {% endblock %}
+
+{% block content %}
+  <form  id="taxonomygeneric-form" action={{ context.action }} method="post">
+    {% csrf_token %}
+    <ul class="admin-list">
+      {{ context.form.as_ul }}
+    </ul>
+    
+    <ul class="actions">
+    <li><input type="submit" value={{ context.action_title }} /></li>
+    </ul>
+  </form>
+{% endblock %}
