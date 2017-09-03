@@ -5,6 +5,11 @@
 
 {% block title %} {{ context.title }} {% endblock %}
 
+{% block head_tags %}
+<script type="text/javascript" src="/static/admin/js/vendor/jquery/jquery.js"></script>
+<script type="text/javascript" src="/static/admin/js/urlify.js"></script>
+{% endblock %}
+
 {% block content %}
   <form  id="taxonomygeneric-form" action={{ context.action }} method="post">
     {% csrf_token %}

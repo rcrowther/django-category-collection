@@ -219,6 +219,7 @@ class TermTaxonomy(models.Model):
     )
     
 # We need to associate many nodes with each term
+# element, not node
 class TermNode(models.Model):
   term = models.ForeignKey(
     Term, 
