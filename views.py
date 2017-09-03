@@ -299,9 +299,9 @@ class TermForm(forms.Form):
     #instance = None
     
     def __init__(self, *args, **kwargs):
-      if ('instance' in kwargs):
-        term = kwargs.pop('instance')
-        kwargs['initial'] = self.model_to_dict(term)
+      #if ('instance' in kwargs):
+        #term = kwargs.pop('instance')
+        #kwargs['initial'] = self.model_to_dict(term)
         
       super().__init__(*args, **kwargs)
       #? cache
@@ -311,28 +311,30 @@ class TermForm(forms.Form):
       #current_termdata = Term.objects.filter(pk__in=term_pks).values_list('pk', 'title')
       #print(str(self.fields['parent'].widget))
       #self.fields['parent'].widget.choices=current_termdata
+      #print('object:')
+      #print(str(self.initial))
       self.fields['parent'].widget.choices=tree_term_titles(1)
     
-    # From ModelForm...
-    def model_to_dict(self, instance):
-        """
-        Return a dict containing the data in ``instance`` suitable for passing as
-        a Form's ``initial`` keyword argument.
-    
-        ``fields`` is an optional list of field names. If provided, return only the
-        named.
-    
-        ``exclude`` is an optional list of field names. If provided, exclude the
-        named from the returned dict, even if they are listed in the ``fields``
-        argument.
-        """
-        opts = instance._meta
-        data = {}
-        for f in chain(opts.concrete_fields, opts.private_fields, opts.many_to_many):
-            if not getattr(f, 'editable', False):
-                continue
-            data[f.name] = f.value_from_object(instance)
-        return data
+# From ModelForm...
+def model_to_dict(instance):
+    """
+    Return a dict containing the data in ``instance`` suitable for passing as
+    a Form's ``initial`` keyword argument.
+
+    ``fields`` is an optional list of field names. If provided, return only the
+    named.
+
+    ``exclude`` is an optional list of field names. If provided, exclude the
+    named from the returned dict, even if they are listed in the ``fields``
+    argument.
+    """
+    opts = instance._meta
+    data = {}
+    for f in chain(opts.concrete_fields, opts.private_fields, opts.many_to_many):
+        if not getattr(f, 'editable', False):
+            continue
+        data[f.name] = f.value_from_object(instance)
+    return data
   
 
 
@@ -378,10 +380,10 @@ def term_add(request, treepk):
             th = TermTree(term=term, parent=parent)
             th.save()
             #            order = form.save(commit=false)
-            return HttpResponseRedirect('/taxonomy/term/{0}'.format(form.cleaned_data['slug']))
-          #except ValueError:
+            return HttpResponseRedirect(reverse('term-list', args=[treepk]))
         else:
-            raise Http404("Term failed to validate")  
+          #? do what?, see edit?
+          raise Http404("Term failed to validate")  
     else:
         # unbound
         # but bind with treepk... but this produces errors?
@@ -404,23 +406,25 @@ def term_edit(request, pk):
     ## if this is a POST request we need to process the form data
     if request.method == 'POST':
         # create a form instance and validate
-        a = Term.objects.get(pk=pk)
-        f = TermForm(request.POST, instance=a)
-        try:
-          if (not f.is_valid()):
-            #! where do validation errors get stored?
-            #! this should be an error list?
+        #t = Term.objects.get(pk=pk)
+        #initial = model_to_dict(t)
+
+        #f = TermForm(request.POST, initial=initial)
+        f = TermForm(request.POST)
+        #try:
+
+        if (not f.is_valid()):
+            #print('cleaned data:')
+            #print(str(f.cleaned_data))
+            
             msg = "Term failed to validate?"
-            #.format(
-            #    Taxonomy._meta.verbose_name,
-            #)
             messages.add_message(request, messages.ERROR, msg)
-            #return HttpResponseRedirect(reverse('tree-list'))
-          else:
+            #? falls through to another render?
+        else:
             # valid
-            print('cleaned data:')
-            print(str(f.cleaned_data))
-            # cleaned data and make an object
+
+            
+            # update the object
             t=Term(
               title=f.cleaned_data['title'],
               slug=f.cleaned_data['slug'],
@@ -428,53 +432,50 @@ def term_edit(request, pk):
               )
             t.save()
             
-            # Should use this?
-            new_pk=t.pk
+            # Should use this? Not changed...
+            new_pk = t.pk
             
-            #? Not Allowed?
+            #? parent between trees Not Allowed?
             #if (f.fields['treepk'].has_changed()):
-            #  TermTree(
-            #    parent=f.cleaned_data['treepk'],
-            #    term=t
-            #    )
+
+            #if (f.fields['parent'].has_changed()):
+            print('POST')
+            print(str(f.initial))
             
-            if (f.fields['parent'].has_changed()):
-              delete_set= TermTaxonomy.objects.filter(exact=new_pk)
-              delete_set.delete()
+            # fix parents. 
+            # may not be efficient, but easier to do this wether changed
+            # or not, otherwise must compare two potential sets of
+            # parents, and do read/write anyhow
+            delete_set = TermTaxonomy.objects.filter(term__exact=new_pk)
+            delete_set.delete()
               
-              o = TermTaxonomy(
-                term=t,
-                taxonomy=f.cleaned_data['treepk'],
-                )
-                
-              o.save()
+            o = TermTaxonomy(
+              term=t,
+              taxonomy=f.cleaned_data['treepk'],
+              )
+            o.save()
 
             msg = 'Term "{0}" was updated'.format(t.title)
             messages.add_message(request, messages.SUCCESS, msg)
+            return HttpResponseRedirect('/taxonomy/tree/{0}/list'.format(f.cleaned_data['treepk']))
             
-          return HttpResponseRedirect('/taxonomy/tree/{0}/list'.format(f.fields['treepk']))
-        except ValueError:
-          raise Http404("Term failed to validate")          
-        #form = TermForm(request.POST)
-        ## check whether it's valid:
-        #if form.is_valid():
-            ## process the data in form.cleaned_data as required
+        #except ValueError:
+        #  raise Http404("Term data failed to update")          
 
-            #term = Term(
-            #)
-            ## redirect to a new URL:
-            ## URL base not working?
-            #print( str(form.cleaned_data))
-            
-            #return HttpResponseRedirect('/taxonomy/term/{0}'.format(request.POST['slug']))
+
     else:
         # get the object
         #? protect
         term = Term.objects.get(pk=pk)
-        form = TermForm(instance=term)
+        initial = model_to_dict(term)
+        tt = TermTaxonomy.objects.get(term__exact=pk)
+        initial['treepk'] = tt.taxonomy.pk
+        print('init:')
+        print(str(initial))
+        f = TermForm(initial=initial)
         
     context={
-    'form': form,
+    'form': f,
     'title': 'Term Edit',
     'html_title': 'term_edit|' + str(pk),
     'action': url_base + '/edit/',
@@ -598,8 +599,7 @@ class TreeForm(ModelForm):
 
 #! add 'parent' field
 def tree_add(request):
-    url_base = '/taxonomy/tree/'
-  
+    
     if request.method == 'POST':
         # create a form instance and populate it with data from the request:
         #form = TermForm(request.POST)
@@ -613,18 +613,21 @@ def tree_add(request):
         f = TreeForm(request.POST)
         try:
           f.save()
-          return HttpResponseRedirect('/taxonomy/tree/{0}'.format(request.POST['slug']))
+          return HttpResponseRedirect(reverse('tree-list'))
         except ValueError:
-          raise Http404("Tree failed to validate")  
+          #raise Http404("Tree failed to validate")  
+          msg = "Tree failed to validate?"
+          messages.add_message(request, messages.ERROR, msg)
+          #? falls through to another render?
     else:
-        form = TreeForm()
-        context={
-        'form': form,
-        'title': 'Tree Add',
-        'html_title': 'tree_add',
-        'action': '/taxonomy/tree/add/',
-        'action_title': 'Save',
-        }    
+        f = TreeForm()
+    context={
+    'form': f,
+    'title': 'Tree Add',
+    'html_title': 'tree_add',
+    'action': '/taxonomy/tree/add/',
+    'action_title': 'Save',
+    }    
     return render(request, 'taxonomy/generic_form.html', {'context': context})
     
     
@@ -636,38 +639,23 @@ def tree_edit(request, pk):
         a = Taxonomy.objects.get(pk=pk)
         f = TreeForm(request.POST, instance=a)
         try:
-          #! defo a an update?
-          #? runs validate?
+          # update
+          # thows erros if validate dails
           f.save()
-          
           msg = 'Tree "{0}" was updated'.format(f.cleaned_data['title'])
           messages.add_message(request, messages.SUCCESS, msg)
-            
-          return HttpResponseRedirect('/taxonomy/tree/{0}/list'.format(f.cleaned_data['pk']))
+          return HttpResponseRedirect(reverse('tree-list'))
         except ValueError:
-          #! dont we display errors?
-          raise Http404("Tree data failed to validate")          
-        #form = TermForm(request.POST)
-        ## check whether it's valid:
-        #if form.is_valid():
-            ## process the data in form.cleaned_data as required
-
-            #term = Term(
-            #)
-            ## redirect to a new URL:
-            ## URL base not working?
-            #print( str(form.cleaned_data))
-            
-            #return HttpResponseRedirect('/taxonomy/term/{0}'.format(request.POST['slug']))
-
+          msg = "Tree failed to validate?"
+          messages.add_message(request, messages.ERROR, msg)
     # if a GET (or any other method) we'll create a blank form
     else:
         #? protect
         o = Taxonomy.objects.get(pk=pk)
-        form = TreeForm(instance=o)
+        f = TreeForm(instance=o)
         
     context={
-    'form': form,
+    'form': f,
     'title': 'Tree Edit',
     'html_title': 'tree_edit|' + str(pk),
     'action': url_base + '/edit/',

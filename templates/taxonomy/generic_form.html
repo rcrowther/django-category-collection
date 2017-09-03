@@ -13,6 +13,7 @@
 {% block content %}
   <form  id="taxonomygeneric-form" action={{ context.action }} method="post">
     {% csrf_token %}
+
     <ul class="admin-list">
       {{ context.form.as_ul }}
     </ul>
