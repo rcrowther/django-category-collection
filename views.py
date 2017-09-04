@@ -11,7 +11,7 @@ from django.utils import html
 from django.utils.safestring import mark_safe
 from itertools import chain
 
-from .models import Term, Taxonomy, TermTaxonomy, TermTree
+from .models import Term, Tree, TermTree, TermParent
 
 #from blunt_admin.views import ModelAdmin2
 from django.http import HttpResponseRedirect
@@ -112,7 +112,7 @@ def tree_terms_for_element(tree_pk, pk):
   Ordered by weight.
   @return queryset of terms
   '''
-  term_for_tree_ids = TermTaxonomy.objects.filter(taxonomy__exact=tree_pk).values_list('term', flat=True)
+  term_for_tree_ids = TermTree.objects.filter(tree__exact=tree_pk).values_list('term', flat=True)
   term_ids = TermNode.objects.filter(node__exact=pk, term__in=term_for_tree_ids).values_list('term', flat=True)
   return Term.objects.order_by('weight').filter(pk__exact=term_ids)
 
@@ -122,7 +122,7 @@ def tree_term_titles(tree_pk):
   Get terms in a tree
   @return list of term data tuples (pk, title)
   '''
-  term_pks = TermTaxonomy.objects.filter(taxonomy__exact=tree_pk)
+  term_pks = TermTree.objects.filter(tree__exact=tree_pk)
   return Term.objects.filter(pk__in=term_pks).values_list('pk', 'title')
   
 _children = {}
@@ -135,8 +135,8 @@ def tree_terms_ordered(tree_pk, parent_pk, max_depth=None):
   '''
   cache = _children.get(tree_pk)
   if (not cached):
-    term_pks = TermTaxonomy.objects.order_by('weight', 'title').filter(taxonomy__exact=tree_pk)
-    term_parents = TermTree.objects.filter(term__in=term_pks)
+    term_pks = TermTree.objects.order_by('weight', 'title').filter(tree__exact=tree_pk)
+    term_parents = TermParent.objects.filter(term__in=term_pks)
     _children[tree_pk] = {}
     for e in term_parents:
       _children[tree_pk][e.parent] = e.term
@@ -220,10 +220,10 @@ def _term_delete(request, pk):
       # Django automanagement of the join tables?
       tt = None
       try:
-        tt=TermTaxonomy.objects.get(term__exact=pk)
+        tt=TermTree.objects.get(term__exact=pk)
       except Exception as e:
         msg = "{0} for Term ID '{1}' is not registered? The database may not be coherent!".format(
-            Taxonomy._meta.verbose_name,
+            Tree._meta.verbose_name,
             unquote(pk)
         )
         messages.add_message(request, messages.ERROR, msg)
@@ -244,9 +244,9 @@ def _term_delete(request, pk):
           #! deletion of descendants
           o.delete()
           #? model delete cascades seem to delete other table data for us.
-          #tt = TermTaxonomy(taxonomy=tree, term=term)
+          #tt = TermTree(taxonomy=tree, term=term)
           #tt.delete()
-          #th = TermTree(term=term, parent=parent)
+          #th = TermParent(term=term, parent=parent)
           #th.delete()
           
           msg = 'The {0} "{1}" was deleted'.format(verbose_name, o.title)
@@ -303,7 +303,7 @@ class TermListView(TemplateView):
       context['navigators'] = [mark_safe('<a href="/taxonomy/tree/list"/>tree list</a>')]
       #print('context:')
       #print(str(self.request))
-      term_id_queryset = TermTaxonomy.objects.filter(taxonomy__exact=context['treepk']).values_list('term', flat=True)
+      term_id_queryset = TermTree.objects.filter(tree__exact=context['treepk']).values_list('term', flat=True)
       term_data_queryset = Term.objects.filter(pk__in=term_id_queryset).values_list('pk', 'title', 'slug')
       rows = []
       for m in term_data_queryset:
@@ -365,7 +365,7 @@ class TermForm(forms.Form):
       #? cache
       # get potential parents.
       #treepk = kwargs['initial'].treepk if ('initial' in kwargs) else args[0]['treepk']
-      #term_pks = TermTaxonomy.objects.filter(taxonomy__exact=self.treepk)
+      #term_pks = TermTree.objects.filter(taxonomy__exact=self.treepk)
       #current_termdata = Term.objects.filter(pk__in=term_pks).values_list('pk', 'title')
       #print(str(self.fields['parent'].widget))
       #self.fields['parent'].widget.choices=current_termdata
@@ -429,13 +429,13 @@ def term_add(request, treepk):
             #! Shambolic, expensive query and writing?
             term = Term(**d)            
             term.save()
-            tree=Taxonomy.objects.get(pk=treepk)
+            tree=Tree.objects.get(pk=treepk)
             parent=Term.objects.get(pk=parentpk)
             #print('newid:')
             #print(new_pk)
-            tt = TermTaxonomy(taxonomy=tree, term=term)
+            tt = TermTree(tree=tree, term=term)
             tt.save()
-            th = TermTree(term=term, parent=parent)
+            th = TermParent(term=term, parent=parent)
             th.save()
             #            order = form.save(commit=false)
             return HttpResponseRedirect(reverse('term-list', args=[treepk]))
@@ -504,14 +504,14 @@ def term_edit(request, pk):
             # may not be efficient, but easier to do this wether changed
             # or not, otherwise must compare two potential sets of
             # parents, and do read/write anyhow
-            delete_set = TermTaxonomy.objects.filter(term__exact=new_pk)
+            delete_set = TermTree.objects.filter(term__exact=new_pk)
             delete_set.delete()
 
-            tree = Taxonomy.objects.get(pk__exact=treepk)
+            tree = Tree.objects.get(pk__exact=treepk)
               
-            o = TermTaxonomy(
+            o = TermTree(
               term=t,
-              taxonomy=tree,
+              tree=tree,
               )
             o.save()
 
@@ -528,7 +528,7 @@ def term_edit(request, pk):
         #? protect
         term = Term.objects.get(pk=pk)
         initial = model_to_dict(term)
-        treepk = TermTaxonomy.objects.get(term__exact=pk).taxonomy.pk
+        treepk = TermTree.objects.get(term__exact=pk).taxonomy.pk
         initial['treepk'] = treepk
         f = TermForm(initial=initial)
         
@@ -550,13 +550,13 @@ def term_edit(request, pk):
 def _tree_delete(request, pk):
       #? into is all similar - DRY
       #? Post is different
-      app_label = Taxonomy._meta.app_label
-      verbose_name = Taxonomy._meta.verbose_name
+      app_label = Tree._meta.app_label
+      verbose_name = Tree._meta.verbose_name
 
       
       # The object exists?
       try:
-        o = Taxonomy.objects.get(pk__exact=pk)
+        o = Tree.objects.get(pk__exact=pk)
       except Exception as e:
         # bail out to the main list
         msg = "{0} with ID '{1}' doesn't exist. Perhaps it was deleted?".format(
@@ -580,13 +580,13 @@ def _tree_delete(request, pk):
           o.delete()
           
           # ...term associations
-          term_ids = TermTaxonomy.objects.filter(taxonomy__exact=pk)
+          term_ids = TermTree.objects.filter(tree__exact=pk)
           #, term=term)
           term_ids.delete()
           
           # ...term hierarchy
           #? no need to check parents too
-          tree_hierarchy = TermTree.objects.filter(term__in=term_ids)
+          tree_hierarchy = TermParent.objects.filter(term__in=term_ids)
           tree_hierarchy.delete()
           
           # ...terms
@@ -618,7 +618,7 @@ def _tree_delete(request, pk):
 def tree_delete(request, pk):
     # Lock the DB. Found this in admin.
     #? lock what? How?
-    with transaction.atomic(using=router.db_for_write(Taxonomy)):
+    with transaction.atomic(using=router.db_for_write(Tree)):
       return _tree_delete(request, pk)
       
 #########################
@@ -639,7 +639,7 @@ class TaxonomyListView(TemplateView):
       context['messages'] = messages.get_messages(self.request)
 
       rows = []
-      tree_queryset = Taxonomy.objects.all().values_list('pk', 'title', 'slug')
+      tree_queryset = Tree.objects.all().values_list('pk', 'title', 'slug')
 
       for m in tree_queryset:
         row = '<td><a href="{0}">{1}</a></td><td>{2}</td><td><a href="{3}">list terms</a></td><td><a href="{4}">delete</a></td>'.format(
@@ -657,7 +657,7 @@ class TaxonomyListView(TemplateView):
 ################
 class TreeForm(ModelForm):
     class Meta:
-        model = Taxonomy
+        model = Tree
         fields = ['title', 'slug', 'is_single', 'is_unique', 'weight']
         
 
@@ -700,7 +700,7 @@ def tree_edit(request, pk):
     ## if this is a POST request we need to process the form data
     if request.method == 'POST':
         # create a form instance and populate it with data from the request:
-        a = Taxonomy.objects.get(pk=pk)
+        a = Tree.objects.get(pk=pk)
         f = TreeForm(request.POST, instance=a)
         try:
           # update
@@ -715,7 +715,7 @@ def tree_edit(request, pk):
     # if a GET (or any other method) we'll create a blank form
     else:
         #? protect
-        o = Taxonomy.objects.get(pk=pk)
+        o = Tree.objects.get(pk=pk)
         f = TreeForm(instance=o)
         
     context={

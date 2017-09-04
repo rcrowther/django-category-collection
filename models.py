@@ -40,7 +40,7 @@ from django.core.urlresolvers import reverse
     #help_text="Connect to another node, or null (cconnection to self forbidden)",
     #)
 
-class Taxonomy(models.Model):
+class Tree(models.Model):
   '''
   parent can be null, for top level. Therefore can be root also.
   '''
@@ -74,6 +74,10 @@ class Taxonomy(models.Model):
     help_text="Priority for display in some templates. Lower value orders first. 0 to 32767.",
     )
 
+    
+  def get_absolute_url(self):
+    return reverse("tree-detail", kwargs={"slug": self.slug})
+
   def __str__(self):
     return "{0}".format(
     self.title, 
@@ -81,21 +85,21 @@ class Taxonomy(models.Model):
     
 # Separate this as we will often want to know
 # the allowable nodes on a term, without other Taxonomy data
-class TaxonomyNodetype(models.Model):
-  taxonomy = models.OneToOneField(
-    Taxonomy,
-    models.CASCADE,
-    primary_key=True,
-    #editable=False,
-    help_text="Type of data allowed in the Taxonomy.",
-    )
+#class TaxonomyNodetype(models.Model):
+  #taxonomy = models.OneToOneField(
+    #Taxonomy,
+    #models.CASCADE,
+    #primary_key=True,
+    ##editable=False,
+    #help_text="Type of data allowed in the Taxonomy.",
+    #)
   
-  node_type = models.CharField(
-    max_length=255,
-    db_index=True,
-    #editable=False,
-    help_text="Type of data allowed in the Taxonomy.",
-    )     
+  #node_type = models.CharField(
+    #max_length=255,
+    #db_index=True,
+    ##editable=False,
+    #help_text="Type of data allowed in the Taxonomy.",
+    #)     
 
 
 #! not to self?
@@ -138,7 +142,6 @@ class Term(models.Model):
     
   def get_absolute_url(self):
     return reverse("term-detail", kwargs={"slug": self.slug})
-    #return reverse(views.TermDetailView, kwargs={"slug": self.slug})
 
   def __str__(self):
     return "{0}".format(
@@ -146,35 +149,53 @@ class Term(models.Model):
     )
 
 # Separate the heirarchy associations
-# Terms may link to several parents
-# in a multi taxonomy
-class TermTree(models.Model):
-  term = models.ForeignKey(
-    Term, 
-    on_delete=models.CASCADE,
+# In a multi taxonomy, Terms may link to several parents.
+# Sadly, this means means niether column is unique. Thus, neither can be 
+# declaared primary. Thus, an extra default auto-inc column will be
+# added.
+#? I've grown unhappy with Django's term recovery here, lazy or not. The
+# deletion cannot cascade down the related links, and full term recovery
+# is excessive, it is often IDs we want. So these are not declared as
+# ForeignKey.
+class TermParent(models.Model):
+  #term = models.ForeignKey(
+    #Term, 
+    #on_delete=models.CASCADE,
+    #db_index=True,
+    #related_name='+',
+    ##related_name="children",
+    ##related_query_name="children",
+    ##editable=False,
+    #help_text="Term to connect to another Term",
+    #)
+    
+  term = models.IntegerField(
     db_index=True,
-    related_name='+',
-    #related_name="children",
-    #related_query_name="children",
     #editable=False,
-    help_text="Term to connect to another Term",
+    help_text="Term to connect to another Term.",
     )
     
-  # can be null, if taxonomy root
-  parent = models.ForeignKey(
-    Term, 
-    on_delete=models.CASCADE,  
-    blank=True, 
-    null=True,
+  # can be null, if at root of taxonomy
+  #parent = models.ForeignKey(
+    #Term, 
+    #on_delete=models.CASCADE,  
+    #blank=True, 
+    #null=True,
+    #db_index=True,
+    #related_name='+',
+    ##related_name="children",
+    ##related_query_name="children",
+    ##editable=False,
+    #help_text="Term parent for another term, or null for root (connection to self forbidden)",
+    #)
+
+  parent = models.IntegerField(
     db_index=True,
-    related_name='+',
-    #related_name="children",
-    #related_query_name="children",
-    #editable=False,
+    null=True,
     help_text="Term parent for another term, or null for root (connection to self forbidden)",
     )
-
     
+  
   def save(self, *args, **kwargs):
     # Raise on circular reference
     #! can be prevented in admin? Limited list?
@@ -185,30 +206,28 @@ class TermTree(models.Model):
     #        raise RuntimeError("Disallowed: Parent joined to self/circular reference.")
     #    parent_term = self.objects.get(term__exact=parent_term.pk).parent
 
-    super(TermTree, self).save(*args, **kwargs)
+    super(TermParent, self).save(*args, **kwargs)
 
   def __str__(self):
     return "{0}-{1}".format(
-    self.term.title, 
-    self.parent.title, 
+    self.term, 
+    self.parent, 
     )
     
-# Associate Terms with a Taxonomy
-class TermTaxonomy(models.Model):
+# Associate Terms with a Tree
+class TermTree(models.Model):
   term = models.OneToOneField(
     Term,
     on_delete=models.CASCADE,
     primary_key=True,
-    #editable=False,
-    help_text="A Term associated with a Taxonomy.",
+    help_text="A Term associated with a Tree.",
     )
     
-  taxonomy = models.ForeignKey(
-    Taxonomy, 
+  tree = models.ForeignKey(
+    Tree, 
     on_delete=models.CASCADE,
     db_index=True,
-    #editable=False,
-    help_text="A Taxonomy associated with a Term.",
+    help_text="A Tree associated with a Term.",
     )
     
     #? method for all terms for a tree?
@@ -225,7 +244,6 @@ class TermNode(models.Model):
     Term, 
     on_delete=models.CASCADE,
     db_index=True,
-    #editable=False,
     help_text="A Term associated with an element.",
     )
     
@@ -235,7 +253,6 @@ class TermNode(models.Model):
   #! how to delete?
   node = models.IntegerField(
     db_index=True,
-    #editable=False,
-    help_text="Id of an element associated with a Term.",
+    help_text="An element associated with a Term.",
     )
 
