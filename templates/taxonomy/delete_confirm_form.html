@@ -1,20 +1,25 @@
 {% extends "base.html" %}
 
 
-{% block html_title %} {{ context.html_title }} {% endblock %}
+{% block html_title %} {{ html_title }} {% endblock %}
 
 {% block title %} Are you sure? {% endblock %}
 
 {% block content %}
-  <form  id="deleteconfirm-form" action={{ context.action }} method="post">
+  <form  id="deleteconfirm-form" action={{ submit.url }} method="post">
     {% csrf_token %}
 
 
-    {{ context.message }}
+    {{ message }}
     
-    <ul class="actions">
-    <li><input value="Yes, I'm sure" type="submit" class="button  alert"></li>
-    <li><a href="#" class="button default">No, take me back</a></li>
+    <ul class="actions confirm">
+    <li><input value="{{ submit.message }}" type="submit" class="button alert"></li>
+    {% for action in actions %}
+      <li> 
+        {{ action }}
+      </li>
+    {% endfor %}
+
     </ul>
   </form>
 {% endblock %}

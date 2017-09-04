@@ -12,24 +12,28 @@ font-family: "Roboto","Lucida Grande","DejaVu Sans","Bitstream Vera Sans",Verdan
 
 article {
 width: 600px;
-margin: 20px auto;
+margin: 0 auto 20px auto;
 }
 
 article > header > h1 {
+padding-top:20px;
 font-weight: 300;
 color: #666;
 }
 
+p {
+line-height: 19px;
+}
+
 a {
-font-weight:bold;
 text-decoration: none;
 }
 
-a:link, a:visited {
+table a:link, table a:visited {
     color: #447e9b;
 }
 
-a:focus, a:hover {
+table a:focus, table a:hover {
     color: #036;
 }
 
@@ -47,6 +51,10 @@ background-color: #eee;
 
 tr > th, tr > td {
 padding: 8px;
+}
+
+table a {
+font-weight:bold;
 }
 
 /* content clear */
@@ -110,6 +118,25 @@ ul.messagelist > li.error {
 }
 
 
+/* navigators */
+
+
+ul.navigatorslist {
+ font-size: 14px;
+ color: #c4dce8;
+background: #79aec8;
+padding: 10px 40px;
+}
+
+ul.navigatorslist  a {
+ color: #fff;
+ font-weight:500;
+text-decoration: none;
+}
+ .navigatorslist a:hover {
+color: #c4dce8;
+}
+
 
 /* toolbar */
 ul.tools {
@@ -132,13 +159,18 @@ background-color: #999;
 background-color: #205067;
 }
 
-ul.actions {
- list-style: none;
-padding: 12px 14px;
+/* actions */
+taxonomygeneric-form > actions {
 background: #f8f8f8;
 border: 1px solid #eee;
 border-radius: 4px;
 text-align: right;
+}
+
+ul.actions {
+ list-style: none;
+ margin-top:20px;
+padding: 12px 0;
 overflow: hidden;
 }
 
@@ -151,24 +183,37 @@ margin-right: 12px;
 .actions .button{
 padding: 10px 15px;
 border: none;
-text-transform: uppercase;
 border-radius: 4px;
+background: #ddd;
+}
+
+.actions .button:hover {
+  background: #ccc;
+}
+
+.actions .primary {
+  background: #417690;
+  color: #fff;
+}
+.actions .primary:hover {
+  background: #205067;
+}
+
+
+.actions .option {
+  background: #79aec8;
+  color: #fff;
+}
+.actions .option:hover {
+  background: #609ab6;
+}
+
+
+.actions .alert {
+background-color: #ba2121;
 color: #fff;
 }
 
-
-.default {
-    background: #417690;
-}
-.default:hover {
-    background: #205067;
-}
-
-
-.alert {
-background-color: #ba2121;
-}
-
-.alert:hover {
+.actions .alert:hover {
 background-color: #a41515;
 }

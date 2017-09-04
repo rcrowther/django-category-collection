@@ -13,6 +13,14 @@
 
   <body>
     <article>
+    {% block navigators %}
+          <ul class="navigatorslist">
+            {% for navigator in navigators %}
+              <li>{{ navigator|capfirst }}</li>
+            {% endfor %}
+          </ul>
+    {% endblock navigators %}
+
     {% block messages %}
         {% if messages %}
           <ul class="messagelist">

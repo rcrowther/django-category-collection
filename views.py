@@ -125,6 +125,61 @@ def tree_term_titles(tree_pk):
   term_pks = TermTaxonomy.objects.filter(taxonomy__exact=tree_pk)
   return Term.objects.filter(pk__in=term_pks).values_list('pk', 'title')
   
+_children = {}
+_parents = {}
+
+def tree_terms_ordered(tree_pk, parent_pk, max_depth=None):
+  '''
+  Get terms in a tree
+  @return list of term data tuples (pk, title)
+  '''
+  cache = _children.get(tree_pk)
+  if (not cached):
+    term_pks = TermTaxonomy.objects.order_by('weight', 'title').filter(taxonomy__exact=tree_pk)
+    term_parents = TermTree.objects.filter(term__in=term_pks)
+    _children[tree_pk] = {}
+    for e in term_parents:
+      _children[tree_pk][e.parent] = e.term
+      _parents[tree_pk][e.term] = e.parent
+       
+  _max_depth = max_depth if max_depth else len(_children[tree_pk])
+  tree = []
+
+  # Keeps track of the parents we have to process, the last entry is used
+  # for the next processing step.
+  parent_stack = [parent_pk]
+
+  while parent_stack:
+    parent_id = parent_stack.pop()
+    depth = len(parent_stack)
+    # only add to tree if not exceeded the depth and children exist
+    if (_max_depth > depth and _children[tree_pk][parent_id]):
+      has_children = False
+      child_id = _children[tree_pk][parent_id]
+      while(True):
+        term = _terms[tree_pk][child_id]
+        if (len(_parents[tree_pk][term.pk]) > 1):
+          #term with multi parents. Copy the term,
+          # so that the depth attribute remains correct.
+          term = Term(term)
+        term.depth = depth
+        term.parents = _parents[tree_pk][term.pk]
+        tree.append(term)
+        if (_children.get[tree_pk][term.pk]):
+          has_children = True
+          
+          # We have to continue with this parent later.
+          process_parents.append(parent_id)
+          # Use the current term as parent for the next iteration.
+          process_parents.append(term.pk)
+
+        child = _children.get[tree_pk][parent]
+        if (not child):
+          break
+          
+  return tree
+  
+  
 ########################################
 from django.forms import ModelForm
 
@@ -158,27 +213,28 @@ def _term_delete(request, pk):
         messages.add_message(request, messages.WARNING, msg) 
         return HttpResponseRedirect(reverse('tree-list'))
 
-             
+      # retrieve the treepk
+      # Passing the value through a form means using the template,
+      # which is no fun.
+      # This horrible retrieval may only be temporary. May remove
+      # Django automanagement of the join tables?
+      tt = None
+      try:
+        tt=TermTaxonomy.objects.get(term__exact=pk)
+      except Exception as e:
+        msg = "{0} for Term ID '{1}' is not registered? The database may not be coherent!".format(
+            Taxonomy._meta.verbose_name,
+            unquote(pk)
+        )
+        messages.add_message(request, messages.ERROR, msg)
+        return HttpResponseRedirect(reverse('tree-list'))
+        
+      treepk=tt.taxonomy.pk
+                     
       if (request.method == 'POST'):
           # delete confirmed
   
-          # retrieve the treepk
-          # Passing the value through a form means using the template,
-          # which is no fun.
-          # This horrible retrieval may only be temporary. May remove
-          # Django automanagement of the join tables?
-          tt = None
-          try:
-            tt=TermTaxonomy.objects.get(term__exact=pk)
-          except Exception as e:
-            msg = "{0} for Term ID '{1}' is not registered? The database may not be coherent!".format(
-                Taxonomy._meta.verbose_name,
-                unquote(pk)
-            )
-            messages.add_message(request, messages.ERROR, msg)
-            return HttpResponseRedirect(reverse('tree-list'))
-            
-          treepk=tt.taxonomy.pk
+
                     
 
           #print(str(treepk))
@@ -198,7 +254,7 @@ def _term_delete(request, pk):
           redirect_url = reverse('term-list', args=[treepk])
           return HttpResponseRedirect(redirect_url)
 
-      message = '<p>Are you sure you want to delete the Term "{0}"?</p><p>Deleting a term will delete all its term children if there are any. This action cannot be undone.</p><p>Deleting a term will not delete elements attached to the term</p>'.format(
+      message = '<p>Are you sure you want to delete the Term "{0}"?</p><p>Deleting a term will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a term will not delete elements attached to the term)</p>'.format(
       html.escape(o.title)
       )
       
@@ -206,11 +262,12 @@ def _term_delete(request, pk):
         'title': 'Term Delete',
         'html_title': 'term_delete',
         'message': mark_safe(message),
-        'action': '/taxonomy/term/{0}/delete/'.format(pk),
+        'submit': {'message':"Yes, I'm sure", 'url': '/taxonomy/term/{0}/delete/'.format(pk)},
+        'actions': [mark_safe('<a href="/taxonomy/tree/{0}/term/list" class="button">No, take me back</a>'.format(treepk))],
         'model_name': 'Term',
         'instance_name': html.escape(o.title),
       } 
-      return render(request, 'taxonomy/delete_confirm_form.html', {'context': context})
+      return render(request, 'taxonomy/delete_confirm_form.html', context)
 
 
 #@csrf_protect_m        
@@ -243,6 +300,7 @@ class TermListView(TemplateView):
       context['tools'] = mark_safe('<li><a href="/taxonomy/tree/{0}/term/add/" class="toollink"/>Add</a></li>'.format(context['treepk']))
       context['headers'] = mark_safe('<th>TITLE</th><th>SLUG</th><th>ACTION</th>')
       context['messages'] = messages.get_messages(self.request)
+      context['navigators'] = [mark_safe('<a href="/taxonomy/tree/list"/>tree list</a>')]
       #print('context:')
       #print(str(self.request))
       term_id_queryset = TermTaxonomy.objects.filter(taxonomy__exact=context['treepk']).values_list('term', flat=True)
@@ -388,7 +446,7 @@ def term_add(request, treepk):
         # unbound
         # but bind with treepk... but this produces errors?
         #form = TermForm({'treepk': treepk})
-        form = TermForm(initial={'treepk': treepk})
+        form = TermForm(initial={'treepk': treepk, 'weight': 0})
         #form = TermForm(treepk=treepk)
         context={
         'form': form,
@@ -400,9 +458,9 @@ def term_add(request, treepk):
     return render(request, 'taxonomy/generic_form.html', {'context': context})
     
     
-    
+# TemplateView
 def term_edit(request, pk):
-    url_base = '/taxonomy/term/{0}'.format(pk)
+            
     ## if this is a POST request we need to process the form data
     if request.method == 'POST':
         # create a form instance and validate
@@ -434,7 +492,7 @@ def term_edit(request, pk):
             
             # Should use this? Not changed...
             new_pk = t.pk
-            
+            treepk = f.cleaned_data['treepk']
             #? parent between trees Not Allowed?
             #if (f.fields['treepk'].has_changed()):
 
@@ -448,16 +506,18 @@ def term_edit(request, pk):
             # parents, and do read/write anyhow
             delete_set = TermTaxonomy.objects.filter(term__exact=new_pk)
             delete_set.delete()
+
+            tree = Taxonomy.objects.get(pk__exact=treepk)
               
             o = TermTaxonomy(
               term=t,
-              taxonomy=f.cleaned_data['treepk'],
+              taxonomy=tree,
               )
             o.save()
 
             msg = 'Term "{0}" was updated'.format(t.title)
             messages.add_message(request, messages.SUCCESS, msg)
-            return HttpResponseRedirect('/taxonomy/tree/{0}/list'.format(f.cleaned_data['treepk']))
+            return HttpResponseRedirect('/taxonomy/tree/{0}/term/list'.format(treepk))
             
         #except ValueError:
         #  raise Http404("Term data failed to update")          
@@ -468,18 +528,20 @@ def term_edit(request, pk):
         #? protect
         term = Term.objects.get(pk=pk)
         initial = model_to_dict(term)
-        tt = TermTaxonomy.objects.get(term__exact=pk)
-        initial['treepk'] = tt.taxonomy.pk
-        print('init:')
-        print(str(initial))
+        treepk = TermTaxonomy.objects.get(term__exact=pk).taxonomy.pk
+        initial['treepk'] = treepk
         f = TermForm(initial=initial)
         
     context={
     'form': f,
     'title': 'Term Edit',
     'html_title': 'term_edit|' + str(pk),
-    'action': url_base + '/edit/',
+    'action': '/taxonomy/term/{0}/edit/'.format(pk),
     'action_title': 'Save',
+    'navigators': [
+      mark_safe('<a href="/taxonomy/tree/list"/>tree list</a>'),
+      mark_safe('<a href="/taxonomy/tree/{0}/term/list"/>term list</a>'.format(treepk))
+      ]
     }
     
     return render(request, 'taxonomy/generic_form.html', {'context': context})
@@ -536,7 +598,7 @@ def _tree_delete(request, pk):
           redirect_url = reverse('tree-list')
           return HttpResponseRedirect(redirect_url)
 
-      message = '<p>Are you sure you want to delete the Tree "{0}"?</p><p>Deleting a tree will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a tree will not delete elements attached to the terms</p>'.format(
+      message = '<p>Are you sure you want to delete the Tree "{0}"?</p><p>Deleting a tree will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a tree will not delete elements attached to the terms)</p>'.format(
       html.escape(o.title)
       )
       
@@ -544,11 +606,12 @@ def _tree_delete(request, pk):
         'title': 'Tree Delete',
         'html_title': 'tree_delete',
         'message': mark_safe(message),
-        'action': '/taxonomy/tree/{0}/delete/'.format(pk),
+        'submit': {'message':"Yes, I'm sure", 'url': '/taxonomy/tree/{0}/delete/'.format(pk)},
+        'actions': [mark_safe('<a href="/taxonomy/tree/list" class="button">No, take me back</a>')],
         'model_name': 'Taxonomy',
         'instance_name': html.escape(o.title),
       } 
-      return render(request, 'taxonomy/delete_confirm_form.html', {'context': context})
+      return render(request, 'taxonomy/delete_confirm_form.html', context)
 
 
 #@csrf_protect_m        
@@ -572,6 +635,7 @@ class TaxonomyListView(TemplateView):
       context['title'] = 'Tree List'
       context['tools'] = mark_safe('<li><a href="/taxonomy/tree/add/" class="toollink"/>Add</a></li>')
       context['headers'] = mark_safe('<th>TITLE</th><th>SLUG</th><th>ACTION</th><th></th>')
+      #context['navigators'] = [mark_safe('<a href="/taxonomy/tree/list"/>tree list</a>')]
       context['messages'] = messages.get_messages(self.request)
 
       rows = []
@@ -640,7 +704,7 @@ def tree_edit(request, pk):
         f = TreeForm(request.POST, instance=a)
         try:
           # update
-          # thows erros if validate dails
+          # thows errors if validate dails
           f.save()
           msg = 'Tree "{0}" was updated'.format(f.cleaned_data['title'])
           messages.add_message(request, messages.SUCCESS, msg)
@@ -660,6 +724,10 @@ def tree_edit(request, pk):
     'html_title': 'tree_edit|' + str(pk),
     'action': url_base + '/edit/',
     'action_title': 'Save',
+    'navigators': [
+      mark_safe('<a href="/taxonomy/tree/list"/>tree list</a>'),
+      mark_safe('<a href="/taxonomy/tree/{0}/term/list"/>term list</a>'.format(pk))
+      ],
     }
     
     return render(request, 'taxonomy/generic_form.html', {'context': context})
