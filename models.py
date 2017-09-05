@@ -3,43 +3,16 @@ from django.core.urlresolvers import reverse
 
 # Create your models here.
 
-# We need this because we want to 
-# - de-typify the object connection
-# - Have a ManyToMany connection
-#class TermElement(models.Model):
-  #parent = models.OneToOneField(
-    #'Term', 
-    #on_delete=models.CASCADE,  
-    ##related_name="children",
-    ##related_query_name="children",
-    #help_text="Connect to another node, or null (cconnection to self forbidden)",
-    #)
-    
-  #term = models.OneToOneField(
-    #'Term', 
-    #on_delete=models.CASCADE,  
-    ##related_name="children",
-    ##related_query_name="children",
-    #help_text="Connect to another node, or null (cconnection to self forbidden)",
-    #)
 
-#class TermParent(models.Model):
-  #parent = models.ForeignKey(
-    #'Term', 
-    #on_delete=models.CASCADE,  
-    ##related_name="children",
-    ##related_query_name="children",
-    #help_text="Connect to another node, or null (cconnection to self forbidden)",
-    #)
-    
-  #term = models.ForeignKey(
-    #'Term', 
-    #on_delete=models.CASCADE,  
-    ##related_name="children",
-    ##related_query_name="children",
-    #help_text="Connect to another node, or null (cconnection to self forbidden)",
-    #)
-
+  # names and slugs do not have to be unique, as we may want to 
+  # structure a website, for example, and there may be several 'news'
+  # terms under 'sports', 'local', 'culture' etc.
+  # On the other hand, that means slugs can not be used for URLs. 
+  # It seems ok to enforce uniqueness within a term, but this is not the
+  # place for that.
+  #? That means a unique identifier from the data could be parent-term? 
+  
+# We do want an id field here
 class Tree(models.Model):
   '''
   parent can be null, for top level. Therefore can be root also.
@@ -50,12 +23,20 @@ class Tree(models.Model):
     help_text="Name for a tree of categories. Limited to 255 characters.",
     )
 
+
   slug = models.SlugField(
     max_length=64,
     # unique specifies index
     #db_index=True,
     unique=True,
     help_text="Short name for use in urls.",
+    )
+    
+  description = models.CharField(
+    max_length=255,
+    blank=True,
+    default='',
+    help_text="Overall description of the collection of categories. Limited to 255 characters.",
     )
     
   is_single = models.BooleanField(
@@ -71,6 +52,7 @@ class Tree(models.Model):
   weight = models.PositiveSmallIntegerField(
     blank=True,
     default=0,
+    db_index=True,
     help_text="Priority for display in some templates. Lower value orders first. 0 to 32767.",
     )
 
@@ -124,9 +106,17 @@ class Term(models.Model):
     help_text="Short name for use in urls.",
     )
 
+  description = models.CharField(
+    max_length=255,
+    blank=True,
+    default='',
+    help_text="Description of the category. Limited to 255 characters.",
+    )
+    
   weight = models.PositiveSmallIntegerField(
     blank=True,
     default=0,
+    db_index=True,
     help_text="Priority for display in some templates. Lower value orders first. 0 to 32767.",
     )
 
@@ -155,8 +145,9 @@ class Term(models.Model):
 # added.
 #? I've grown unhappy with Django's term recovery here, lazy or not. The
 # deletion cannot cascade down the related links, and full term recovery
-# is excessive, it is often IDs we want. So these are not declared as
-# ForeignKey.
+# is excessive, it is often IDs we want. So these fields are not 
+# declared as ForeignKey.
+#! unwanted id field here
 class TermParent(models.Model):
   #term = models.ForeignKey(
     #Term, 
@@ -215,6 +206,9 @@ class TermParent(models.Model):
     )
     
 # Associate Terms with a Tree
+#? The arguments here are less strong for TermParent (no multiple
+# associations) but getting ids only is likely frequent, so this can be
+# managed manually too (if only for clarity of code).
 class TermTree(models.Model):
   term = models.OneToOneField(
     Term,
@@ -237,8 +231,15 @@ class TermTree(models.Model):
     self.taxonomy.title, 
     )
     
-# We need to associate many nodes with each term
-# element, not node
+
+# We want to 
+# - de-typify the object connection
+# : this is a database schema, so the connection must be of some type,
+# so use Django's IntegerField pks.
+# - Have a ManyToMany connection
+# : may be enforced in some circumstances
+# auto field handling should work ok here.
+#! unwanted id field here
 class TermNode(models.Model):
   term = models.ForeignKey(
     Term, 
@@ -256,3 +257,8 @@ class TermNode(models.Model):
     help_text="An element associated with a Term.",
     )
 
+  def __str__(self):
+    return "{0}-{1}".format(
+    self.term.title, 
+    self.node, 
+    )
