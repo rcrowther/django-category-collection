@@ -5,7 +5,7 @@ from django import forms
 # Register your models here.
 
 
-from .models import Term, Tree, TermTree, TermParent
+from .models import Term, Tree, TermTree, TermParent, TermNode
 
 
 #class TaxonomySelectField(forms.ChoiceField):
@@ -171,18 +171,18 @@ admin.site.register(Tree, TaxonomyAdmin)
 
 
 
-class TermParentAdmin(admin.ModelAdmin):
+#class TermParentAdmin(admin.ModelAdmin):
   # Not working
   #raw_id_fields = ("term",)
   #form = TermTaxonomyForm
-  list_select_related = ('term', 'parent')
+  #list_select_related = ('term', 'parent')
 
  #def get_form(self, request, obj=None, **kwargs):
  #       if request.user.is_superuser:
  #           kwargs['form'] = MySuperuserForm
  #       return super(MyModelAdmin, self).get_form(request, obj, **kwargs)
   
-admin.site.register(TermParent, TermParentAdmin)
+admin.site.register(TermParent)
 
 ######################################################
 
@@ -209,3 +209,5 @@ class TermTaxonomyAdmin(admin.ModelAdmin):
 admin.site.register(TermTree, TermTaxonomyAdmin)
 
 ########################################
+
+admin.site.register(TermNode)

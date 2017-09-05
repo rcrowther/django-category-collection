@@ -4,13 +4,13 @@ from django.core.urlresolvers import reverse
 # Create your models here.
 
 
-  # names and slugs do not have to be unique, as we may want to 
-  # structure a website, for example, and there may be several 'news'
-  # terms under 'sports', 'local', 'culture' etc.
-  # On the other hand, that means slugs can not be used for URLs. 
-  # It seems ok to enforce uniqueness within a term, but this is not the
-  # place for that.
-  #? That means a unique identifier from the data could be parent-term? 
+#? names and slugs do not have to be unique, as we may want to 
+# structure a website, for example, and there may be several 'news'
+# terms under 'sports', 'local', 'culture' etc.
+# On the other hand, that means slugs can not be used for URLs. 
+# It seems ok to enforce uniqueness within a term, but this is not the
+# place for that.
+#? That means a unique identifier from the data could be parent-term? 
   
 # We do want an id field here
 class Tree(models.Model):
@@ -180,13 +180,20 @@ class TermParent(models.Model):
     #help_text="Term parent for another term, or null for root (connection to self forbidden)",
     #)
 
+  # Sadly, the autoincrement is dependent on underlying DB 
+  # implementation. It would be nice to guarentee zero, but the only
+  # way to do this is by an even more awkward method of migration.
+  # So null it is, for unparented Terms.
   parent = models.IntegerField(
     db_index=True,
-    null=True,
+    #null=True,
+    #blank=True,
     help_text="Term parent for another term, or null for root (connection to self forbidden)",
     )
     
-  
+  # Now that would beggar belief, an auto-increment tat allows -1...
+  NO_PARENT = -1
+
   def save(self, *args, **kwargs):
     # Raise on circular reference
     #! can be prevented in admin? Limited list?
@@ -228,7 +235,7 @@ class TermTree(models.Model):
   def __str__(self):
     return "{0}-{1}".format(
     self.term.title, 
-    self.taxonomy.title, 
+    self.tree.title, 
     )
     
 

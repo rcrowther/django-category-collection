@@ -124,59 +124,75 @@ def tree_term_titles(tree_pk):
   '''
   term_pks = TermTree.objects.filter(tree__exact=tree_pk)
   return Term.objects.filter(pk__in=term_pks).values_list('pk', 'title')
-  
+
+#! filter for illegal where?  
+def tree_term_select_titles(tree_pk):
+  return list(chain([(TermParent.NO_PARENT, 'root')], tree_term_titles(tree_pk)))
+
+# Cache of hierarchial associations
+# cache{tree{term_id: [associated_term_ids]}}
 _children = {}
 _parents = {}
 
-def tree_terms_ordered(tree_pk, parent_pk, max_depth=None):
+def children(treepk):
+  return _children[treepk]
+
+def parents(treepk):
+  return _parents[treepk]
+    
+def tree_terms_ordered(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=None):
   '''
   Get terms in a tree
   @return list of term data tuples (pk, title)
   '''
-  cache = _children.get(tree_pk)
+  cached = _children.get(tree_pk)
   if (not cached):
     term_pks = TermTree.objects.order_by('weight', 'title').filter(tree__exact=tree_pk)
     term_parents = TermParent.objects.filter(term__in=term_pks)
     _children[tree_pk] = {}
+    _parents[tree_pk] = {}
     for e in term_parents:
-      _children[tree_pk][e.parent] = e.term
-      _parents[tree_pk][e.term] = e.parent
-       
-  _max_depth = max_depth if max_depth else len(_children[tree_pk])
+      if (e.parent in _children[tree_pk]):
+        _children[tree_pk][e.parent].append(e.term)
+      else:
+        _children[tree_pk][e.parent] = [e.term]
+      if (e.term in _parents[tree_pk]):
+        _parents[tree_pk][e.term].append(e.parent)
+      else:
+        _parents[tree_pk][e.term] = [e.parent]
+
+  children = _children[tree_pk]
+  parents = _parents[tree_pk]
+  _max_depth = max_depth if max_depth else len(children)
   tree = []
 
   # Keeps track of the parents we have to process, the last entry is used
   # for the next processing step.
-  parent_stack = [parent_pk]
+  child_pks = children[parent_pk]
+  #
+  stack = [iter(child_pks)]
 
-  while parent_stack:
-    parent_id = parent_stack.pop()
-    depth = len(parent_stack)
-    # only add to tree if not exceeded the depth and children exist
-    if (_max_depth > depth and _children[tree_pk][parent_id]):
-      has_children = False
-      child_id = _children[tree_pk][parent_id]
-      while(True):
-        term = _terms[tree_pk][child_id]
-        if (len(_parents[tree_pk][term.pk]) > 1):
-          #term with multi parents. Copy the term,
-          # so that the depth attribute remains correct.
-          term = Term(term)
-        term.depth = depth
-        term.parents = _parents[tree_pk][term.pk]
-        tree.append(term)
-        if (_children.get[tree_pk][term.pk]):
-          has_children = True
-          
-          # We have to continue with this parent later.
-          process_parents.append(parent_id)
-          # Use the current term as parent for the next iteration.
-          process_parents.append(term.pk)
+  while stack:
+    depth = len(stack)
+    it = stack.pop()
 
-        child = _children.get[tree_pk][parent]
-        if (not child):
-          break
-          
+    while(True):
+      try:
+        pk = it.__next__()
+      except StopIteration:
+        break
+      tree.append((pk, depth, parents[pk]))
+      
+      child_pks = children.get(pk)
+      ## check for children
+      # only continue down if not exceeded the depth and children exist
+      if (_max_depth > depth and child_pks):
+        # append current iter, to go back to
+        stack.append(it)
+        # append new depth of iter
+        stack.append(iter(child_pks))
+        break
+        
   return tree
   
   
@@ -229,13 +245,11 @@ def _term_delete(request, pk):
         messages.add_message(request, messages.ERROR, msg)
         return HttpResponseRedirect(reverse('tree-list'))
         
-      treepk=tt.taxonomy.pk
+      treepk=tt.tree.pk
                      
       if (request.method == 'POST'):
           # delete confirmed
-  
-
-                    
+          #! Should delete children too
 
           #print(str(treepk))
           #raise Exception
@@ -246,8 +260,8 @@ def _term_delete(request, pk):
           #? model delete cascades seem to delete other table data for us.
           #tt = TermTree(taxonomy=tree, term=term)
           #tt.delete()
-          #th = TermParent(term=term, parent=parent)
-          #th.delete()
+          th = TermParent.objects.filter(term__exact=pk)
+          th.delete()
           
           msg = 'The {0} "{1}" was deleted'.format(verbose_name, o.title)
           messages.add_message(request, messages.SUCCESS, msg)
@@ -369,9 +383,10 @@ class TermForm(forms.Form):
       #current_termdata = Term.objects.filter(pk__in=term_pks).values_list('pk', 'title')
       #print(str(self.fields['parent'].widget))
       #self.fields['parent'].widget.choices=current_termdata
-      #print('object:')
-      #print(str(self.initial))
-      self.fields['parent'].widget.choices=tree_term_titles(1)
+      #print('chain:')
+      #for e in tree_term_select_titles(1):
+      #  print(str(e))
+      self.fields['parent'].widget.choices=tree_term_select_titles(1)
     
 # From ModelForm...
 def model_to_dict(instance):
@@ -430,12 +445,14 @@ def term_add(request, treepk):
             term = Term(**d)            
             term.save()
             tree=Tree.objects.get(pk=treepk)
-            parent=Term.objects.get(pk=parentpk)
             #print('newid:')
             #print(new_pk)
             tt = TermTree(tree=tree, term=term)
             tt.save()
-            th = TermParent(term=term, parent=parent)
+            # handle the 'set to null' problem (parentpk = 0)
+            #! handle multiple parents
+            #parentpk = parentpk if (parentpk > 0) else None
+            th = TermParent(term=term.pk, parent=parentpk)
             th.save()
             #            order = form.save(commit=false)
             return HttpResponseRedirect(reverse('term-list', args=[treepk]))
@@ -528,7 +545,7 @@ def term_edit(request, pk):
         #? protect
         term = Term.objects.get(pk=pk)
         initial = model_to_dict(term)
-        treepk = TermTree.objects.get(term__exact=pk).taxonomy.pk
+        treepk = TermTree.objects.get(term__exact=pk).tree
         initial['treepk'] = treepk
         f = TermForm(initial=initial)
         
