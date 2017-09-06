@@ -106,6 +106,7 @@ from django.http import HttpResponseRedirect
 ########################################
 ## helpers
 
+  
 def tree_terms_for_element(tree_pk, pk):
   '''
   Get associated terms
@@ -125,25 +126,40 @@ def tree_term_titles(tree_pk):
   term_pks = TermTree.objects.filter(tree__exact=tree_pk)
   return Term.objects.filter(pk__in=term_pks).values_list('pk', 'title')
 
-#! filter for illegal where?  
-def tree_term_select_titles(tree_pk):
-  return list(chain([(TermParent.NO_PARENT, 'root')], tree_term_titles(tree_pk)))
 
 # Cache of hierarchial associations
-# cache{tree{term_id: [associated_term_ids]}}
+# cache{tree_id: {term_id: [associated_term_ids]}}
 _children = {}
 _parents = {}
 
+# defo cache tree objects
+# maybe cashe terms
+
+_term = {}
+
+def term_data(termpk):
+  t = _term.get(termpk)
+  if (not t):
+    term = Term.objects.get(pk__exact=termpk)
+    t = (term.title, term.description)
+    _term[termpk] = t
+  return t
+  
+# probably want term_children? all_term_children?
 def children(treepk):
   return _children[treepk]
 
+#def term_children_pk(termpk):
+
+#def term_parents_pk(termpk):
+  
 def parents(treepk):
   return _parents[treepk]
     
 def tree_terms_ordered(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=None):
   '''
   Get terms in a tree
-  @return list of term data tuples (pk, title)
+  @return list of tuples (termpk, depth. [parent_ids]). Root ids will be parented by [-1].
   '''
   cached = _children.get(tree_pk)
   if (not cached):
@@ -195,7 +211,35 @@ def tree_terms_ordered(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=None):
         
   return tree
   
-  
+def term_node_count(termpk):
+  return TermNode.objects.filter(term__exact=termpk).count()
+
+#! filter for illegal where?  
+def tree_term_select_titles(tree_pk, exclude=[]):
+  tree = tree_terms_ordered(tree_pk)
+  b = []
+  for e in tree:
+    if (not e in exclude):
+      name = term_data(e[0])[0]
+      b.append((e[0], '-'*e[1] + name))
+    
+  return b
+  #list(chain([(TermParent.NO_PARENT, 'root')], tree_term_titles(tree_pk)))
+
+def _term_delete(pk):
+  stash=[pk]
+  while stash:
+    tpk = stash.pop()
+    children = TermParent.objects.filter(parent__exact=tpk).values_list('term', flat=True)
+    for c in children:
+      parents_c = TermParent.objects.filter(term__exact=c).count()
+      if ( parents_c < 2 ):
+        stash.append(c)
+    t = Term.objects.get(pk__exact=tpk)
+    t.delete()
+    tp = TermParent.objects.filter(term__exact=tpk)
+    tp.delete()
+      
 ########################################
 from django.forms import ModelForm
 
@@ -213,7 +257,7 @@ from django.contrib.admin.utils import quote, unquote
 
 
         
-def _term_delete(request, pk):
+def _term_delete_action(request, pk):
       app_label = Term._meta.app_label
       verbose_name = Term._meta.verbose_name
 
@@ -256,12 +300,13 @@ def _term_delete(request, pk):
           
           #? logging
           #! deletion of descendants
-          o.delete()
+          #o.delete()
           #? model delete cascades seem to delete other table data for us.
           #tt = TermTree(taxonomy=tree, term=term)
           #tt.delete()
-          th = TermParent.objects.filter(term__exact=pk)
-          th.delete()
+          #th = TermParent.objects.filter(term__exact=pk)
+          #th.delete()
+          _term_delete(pk)
           
           msg = 'The {0} "{1}" was deleted'.format(verbose_name, o.title)
           messages.add_message(request, messages.SUCCESS, msg)
@@ -288,7 +333,7 @@ def _term_delete(request, pk):
 def term_delete(request, pk):
   # Lock the DB. Found this in admin.
     with transaction.atomic(using=router.db_for_write(Term)):
-      return _term_delete(request, pk)
+      return _term_delete_action(request, pk)
   
     
     
@@ -387,7 +432,10 @@ class TermForm(forms.Form):
       #for e in tree_term_select_titles(1):
       #  print(str(e))
       self.fields['parent'].widget.choices=tree_term_select_titles(1)
-    
+      # not working...
+      #self.fields['parent'].widget.selected=kwargs['initial']['pk']
+          
+          
 # From ModelForm...
 def model_to_dict(instance):
     """
