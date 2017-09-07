@@ -778,33 +778,33 @@ def tree_delete(request, pk):
 # List of Tree Datas
 # Also needs links to terms?
 
-class TaxonomyListView(TemplateView):
-  template_name = "taxonomy/generic_list.html"
-  #context_object_name = 'tree_list'
+class TreeListView(TemplateView):
+  template_name = "taxonomy/tree_list.html"
 
   def get_context_data(self, **kwargs):
-      context = super(TaxonomyListView, self).get_context_data(**kwargs)
-      #queryset = Term.objects.filter(parent__isnull=True)
+      context = super(TreeListView, self).get_context_data(**kwargs)
+
       context['title'] = 'Tree List'
-      context['tools'] = mark_safe('<li><a href="/taxonomy/tree/add/" class="toollink"/>Add</a></li>')
-      context['headers'] = mark_safe('<th>TITLE</th><th>SLUG</th><th>ACTION</th><th></th>')
+      context['tools'] = [link('Add', reverse('tree-add'))]
+      context['headers'] = [mark_safe('TITLE'), mark_safe('ACTION'), mark_safe(''), mark_safe('')]
       #context['navigators'] = [mark_safe('<a href="/taxonomy/tree/list"/>tree list</a>')]
       context['messages'] = messages.get_messages(self.request)
 
       rows = []
-      tree_queryset = Tree.objects.all().values_list('pk', 'title', 'slug')
+      tree_queryset = Tree.objects.all().order_by('weight', 'title').values_list('pk', flat=True)
 
-      for m in tree_queryset:
-        row = '<td><a href="{0}">{1}</a></td><td>{2}</td><td><a href="{3}">list terms</a></td><td><a href="{4}">delete</a></td>'.format(
-          '/taxonomy/tree/{0}/edit/'.format(m[0]),
-          html.escape(m[1]),
-          html.escape(m[2]),
-          '/taxonomy/tree/{0}/term/list/'.format(m[0]),
-          '/taxonomy/tree/{0}/delete/'.format(m[0]),
-          )
-        rows.append(mark_safe(row))
+      for pk in tree_queryset:
+          title = tree_data(pk).title
+          rows.append({
+            'pk': pk,
+            'title': title,
+            #'weight': e.weight,
+            'edit': link('edit', reverse('tree-edit', args=[pk])),
+            'list': link('list terms', reverse('term-list', args=[pk])),
+            'add': link('add terms', reverse('term-add', args=[pk]))
+          })       
       context['rows'] = rows
-       
+      
       return context
 
 ################

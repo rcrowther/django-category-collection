@@ -1,7 +1,7 @@
 from django.conf.urls import url
 #treelist_view, treeadd_view # tree_view #, TermDetailView
 from generic_view_template.views import GenericObjectView, GenericQuerySetAnchorView
-from taxonomy.views import TaxonomyListView, TermListView
+from taxonomy.views import TreeListView, TermListView
 from taxonomy.models import Term, Tree
 from paper.models import Paper
 from generic_view_template import rend
@@ -84,13 +84,13 @@ urlpatterns = [
   url(r'^term/(?P<pk>\d+)/$', GenericObjectView.as_view(model=Term,), name='term-preview'),
   url(r'^term/(?P<slug>[-\w]+)/$', GenericObjectView.as_view(model=Term,), name='term-detail'),
 
-  url(r'^tree/list/$', TaxonomyListView.as_view(), name='tree-list'),
+  url(r'^tree/list/$', TreeListView.as_view(), name='tree-list'),
   url(r'^tree/(?P<pk>\d+)/edit/$', views.tree_edit, name='tree-edit'),
   url(r'^tree/(?P<pk>\d+)/delete/$', views.tree_delete, name='tree-delete'),
   url(r'^tree/add/$', views.tree_add, name='tree-add'),
   url(r'^tree/(?P<slug>[-\w]+)/$', GenericObjectView.as_view(model=Tree,), name='tree-detail'),
 
-  url(r'^$', TaxonomyListView.as_view(), name='tree-list'),
+  url(r'^$', TreeListView.as_view(), name='tree-list'),
 
   url(r'^article/(?P<pk>[-\w]+)/$', GenericObjectView.as_view(model=Paper, renderers={'image': rend.empty, 'mini_image_url': rend.as_image })),
   # admin/taxonomy/id list of terms

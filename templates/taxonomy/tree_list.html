@@ -13,7 +13,7 @@
       {% endfor %}
     </ul>
 
-  <table class="term-list admin-table">
+  <table class="tree-list admin-table">
     <thead>
       <tr>
       {% for header in headers %}
@@ -26,7 +26,7 @@
     <tbody>
     {% for row in rows %}
       <tr> 
-        <td>{{ row.view }}</td><td>{{ row.edit }}</td>
+        <td>{{ row.title }}</td><td>{{ row.edit }}</td><td>{{ row.list }}</td><td>{{ row.add }}</td>
       </tr>
     {% endfor %}
     </tbody>

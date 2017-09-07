@@ -122,10 +122,17 @@ ul.messagelist > li.error {
 
 
 ul.navigatorslist {
+ list-style-position: inside;
  font-size: 14px;
+ line-height: 14px;
  color: #c4dce8;
 background: #79aec8;
-padding: 10px 40px;
+min-height: 14px;
+padding: 10px 0;
+}
+
+ul.navigatorslist li {
+padding-left: 10px;
 }
 
 ul.navigatorslist  a {
