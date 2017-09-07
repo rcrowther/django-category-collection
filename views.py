@@ -134,16 +134,28 @@ _parents = {}
 
 # defo cache tree objects
 # maybe cashe terms
+from collections import namedtuple
+
+_tree = {}
+TreeData = namedtuple('TreeData', ['title', 'description', 'is_single', 'is_unique'])
+
+def tree_data(treepk):
+  d = _tree.get(treepk)
+  if (not d):
+    t = Tree.objects.get(pk__exact=treepk)
+    d = TreeData(t.title, t.description, t.is_single, t.is_unique)
+    _tree[treepk] = d
+  return d
 
 _term = {}
 
 def term_data(termpk):
-  t = _term.get(termpk)
-  if (not t):
+  d = _term.get(termpk)
+  if (not d):
     term = Term.objects.get(pk__exact=termpk)
-    t = (term.title, term.description)
-    _term[termpk] = t
-  return t
+    d = (term.title, term.description)
+    _term[termpk] = d
+  return d
   
 # probably want term_children? all_term_children?
 def children(treepk):
@@ -155,7 +167,10 @@ def children(treepk):
   
 def parents(treepk):
   return _parents[treepk]
+
+TermFTData = namedtuple('TermFTData', ['pk', 'depth', 'parents'])
     
+#? rename terms_flat_tree?
 def tree_terms_ordered(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=None):
   '''
   Get terms in a tree
@@ -197,7 +212,7 @@ def tree_terms_ordered(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=None):
         pk = it.__next__()
       except StopIteration:
         break
-      tree.append((pk, depth, parents[pk]))
+      tree.append(TermFTData(pk, depth, parents[pk]))
       
       child_pks = children.get(pk)
       ## check for children
@@ -211,6 +226,7 @@ def tree_terms_ordered(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=None):
         
   return tree
   
+  
 def term_node_count(termpk):
   return TermNode.objects.filter(term__exact=termpk).count()
 
@@ -220,8 +236,8 @@ def tree_term_select_titles(tree_pk, exclude=[]):
   b = []
   for e in tree:
     if (not e in exclude):
-      name = term_data(e[0])[0]
-      b.append((e[0], '-'*e[1] + name))
+      name = term_data(e.pk)[0]
+      b.append((e.pk, '-'*e.depth + name))
     
   return b
   #list(chain([(TermParent.NO_PARENT, 'root')], tree_term_titles(tree_pk)))
@@ -345,34 +361,82 @@ from .models import Term
 # List of Tree Datas
 # Also needs links to terms?
 
+def link(text, href, attrs={}):
+  '''
+  @param attrs not escaped
+  '''
+  #NB 'attrs' can not use kwargs because may want to use reserved words
+  # for keys, such as 'id' and 'class'
+  b = []
+  for k,v in attrs.items():
+    b.append('{0}={1}'.format(k, v))
+  return mark_safe('<a href="{0}" {1}/>{2}</a>'.format(
+    html.escape(href),
+    ' '.join(b),
+    html.escape(text)
+    ))
+  
 class TermListView(TemplateView):
-  template_name = "taxonomy/generic_list.html"
+  template_name = "taxonomy/term_list.html"
   #?
   #context_object_name = 'term_list'
 
   def get_context_data(self, **kwargs):
+      #print('kwargs:')
+      #print(str(kwargs))
+      treepk=kwargs['treepk']
+      td = tree_data(treepk)
       context = super(TermListView, self).get_context_data(**kwargs)
-      #??? Need styling
-      #messages.add_message(self.request, messages.INFO, "Totl duff")
 
-      context['title'] = 'Term List'
-      context['tools'] = mark_safe('<li><a href="/taxonomy/tree/{0}/term/add/" class="toollink"/>Add</a></li>'.format(context['treepk']))
-      context['headers'] = mark_safe('<th>TITLE</th><th>SLUG</th><th>ACTION</th>')
+      context['title'] = mark_safe(('Terms in <i>{0}</i>').format(html.escape(td.title)))
+      context['tools'] = [link('Add', reverse('term-add', args=[treepk]))]
+      context['headers'] = [mark_safe('TITLE'), mark_safe('ACTION')]
       context['messages'] = messages.get_messages(self.request)
-      context['navigators'] = [mark_safe('<a href="/taxonomy/tree/list"/>tree list</a>')]
+      context['navigators'] = [link('Tree List', reverse('tree-list'))]
       #print('context:')
       #print(str(self.request))
-      term_id_queryset = TermTree.objects.filter(tree__exact=context['treepk']).values_list('term', flat=True)
-      term_data_queryset = Term.objects.filter(pk__in=term_id_queryset).values_list('pk', 'title', 'slug')
+      ## form of rows
+      # - name with view link
+      # - tid parent depth (all hidden)
+      # - 'edit' link
       rows = []
-      for m in term_data_queryset:
-        row = '<td><a href="{0}">{1}</a></td><td>{2}</td><td><a href="{3}">delete</a></td>'.format(
-          '/taxonomy/term/{0}/edit/'.format(m[0]),
-          html.escape(m[1]),
-          html.escape(m[2]),
-          '/taxonomy/term/{0}/delete/'.format(m[0]),
-          )
-        rows.append(mark_safe(row))
+      # Term row displays come in two forms...
+      if (not td.is_single):
+        # can not show the structure of the tree
+        #pass
+        term_id_queryset = TermTree.objects.filter(tree__exact=context['treepk']).values_list('term', flat=True)
+        term_data_queryset = Term.objects.filter(pk__in=term_id_queryset).values_list('pk', 'title')
+        for e in term_data_queryset:
+          rows.append({
+            'view': link(e.title, reverse('term-preview', e.pk)),
+            'edit': link('edit', reverse('term-edit', e.pk))
+          })    
+      else:
+        # multiple can show the structure of the tree
+        #pass
+        tree = tree_terms_ordered(treepk)
+        for e in tree:
+          name = term_data(e.pk)[0]
+          rows.append({
+            'view': link(name, reverse('term-preview', args=[e.pk])),
+            'termpk': e.pk,
+            'parent': e.parents[0],
+            'depth': e.depth,
+            'edit': link('edit', reverse('term-edit', args=[e.pk]))
+          })
+          
+      #term_id_queryset = TermTree.objects.filter(tree__exact=context['treepk']).values_list('term', flat=True)
+      #term_data_queryset = Term.objects.filter(pk__in=term_id_queryset).values_list('pk', 'title', 'slug')
+      #rows = []
+      #for m in term_data_queryset:
+        #row = '<td><a href="{0}">{1}</a></td><td>{2}</td><td><a href="{3}">delete</a></td>'.format(
+          #'/taxonomy/term/{0}/edit/'.format(m[0]),
+          #html.escape(m[1]),
+          #html.escape(m[2]),
+          #'/taxonomy/term/{0}/delete/'.format(m[0]),
+          #)
+        #rows.append(mark_safe(row))
+        
       context['rows'] = rows
        
       return context

@@ -81,6 +81,7 @@ urlpatterns = [
   url(r'^term/(?P<pk>\d+)/edit/$', views.term_edit, name='term-edit'),
   url(r'^term/(?P<pk>\d+)/delete/$', views.term_delete, name='term-delete'),
   url(r'^tree/(?P<treepk>\d+)/term/add/$', views.term_add, name='term-add'),
+  url(r'^term/(?P<pk>\d+)/$', GenericObjectView.as_view(model=Term,), name='term-preview'),
   url(r'^term/(?P<slug>[-\w]+)/$', GenericObjectView.as_view(model=Term,), name='term-detail'),
 
   url(r'^tree/list/$', TaxonomyListView.as_view(), name='tree-list'),

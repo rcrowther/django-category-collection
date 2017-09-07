@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block html_title %} {{ title|striptags }} {% endblock %}
+
+{% block title %} {{ title }} {% endblock %}
+
+{% block content %}
+    <ul class="tools">
+      {% for tool in tools %}
+        <li>
+        {{ tool }}
+        </li>
+      {% endfor %}
+    </ul>
+
+  <table class="tree-list admin-table">
+    <thead>
+      <tr>
+      {% for header in headers %}
+        <th>
+        {{ header }}
+        </th>
+      {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+      <tr> 
+        <td>{{ row.view }}</td><td>{{ row.edit }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}
