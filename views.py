@@ -157,6 +157,26 @@ def term_data(termpk):
     _term[termpk] = d
   return d
   
+  
+def cache_clear_on_update():
+  '''
+  No need to empty term cache.
+  '''
+  _children = {}
+  _parents = {}
+  _tree = {}
+  
+  
+def cache_clear_tree():
+  '''
+  If trees are updated or created, no effect on term cache. 
+  '''
+  _tree = {}
+
+def cache_clear():
+  cache_clear_on_update()
+  _term = {}
+
 # probably want term_children? all_term_children?
 def children(treepk):
   return _children[treepk]
@@ -204,6 +224,7 @@ def tree_terms_ordered(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=None):
   stack = [iter(child_pks)]
 
   while stack:
+    #! depth counting from 1? Think I prefer 0?
     depth = len(stack)
     it = stack.pop()
 
@@ -217,7 +238,7 @@ def tree_terms_ordered(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=None):
       child_pks = children.get(pk)
       ## check for children
       # only continue down if not exceeded the depth and children exist
-      if (_max_depth > depth and child_pks):
+      if (depth < _max_depth and child_pks):
         # append current iter, to go back to
         stack.append(it)
         # append new depth of iter
@@ -255,6 +276,10 @@ def _term_delete(pk):
     t.delete()
     tp = TermParent.objects.filter(term__exact=tpk)
     tp.delete()
+    
+    # cache is invalid
+    cache_clear()
+
       
 ########################################
 from django.forms import ModelForm
@@ -378,8 +403,7 @@ def link(text, href, attrs={}):
   
 class TermListView(TemplateView):
   template_name = "taxonomy/term_list.html"
-  #?
-  #context_object_name = 'term_list'
+  
 
   def get_context_data(self, **kwargs):
       #print('kwargs:')
@@ -402,8 +426,8 @@ class TermListView(TemplateView):
       rows = []
       # Term row displays come in two forms...
       if (not td.is_single):
-        # can not show the structure of the tree
-        #pass
+        # multiple can not show the structure of the tree
+        # (...it could if it was small, but let's be consistent)
         term_id_queryset = TermTree.objects.filter(tree__exact=context['treepk']).values_list('term', flat=True)
         term_data_queryset = Term.objects.filter(pk__in=term_id_queryset).values_list('pk', 'title')
         for e in term_data_queryset:
@@ -412,33 +436,23 @@ class TermListView(TemplateView):
             'edit': link('edit', reverse('term-edit', e.pk))
           })    
       else:
-        # multiple can show the structure of the tree
-        #pass
+        # single parentage can show the structure of the tree
         tree = tree_terms_ordered(treepk)
         for e in tree:
           name = term_data(e.pk)[0]
+          #? Use unicode nbsp is probably not long-term viable
+          # but will do for now?
+          title = '\u00A0'*(e.depth*2) + name
+          # (extra context gear in case we ever enable templates/JS etc.)
           rows.append({
-            'view': link(name, reverse('term-preview', args=[e.pk])),
+            'view': link(title, reverse('term-preview', args=[e.pk])),
             'termpk': e.pk,
             'parent': e.parents[0],
             'depth': e.depth,
             'edit': link('edit', reverse('term-edit', args=[e.pk]))
           })
-          
-      #term_id_queryset = TermTree.objects.filter(tree__exact=context['treepk']).values_list('term', flat=True)
-      #term_data_queryset = Term.objects.filter(pk__in=term_id_queryset).values_list('pk', 'title', 'slug')
-      #rows = []
-      #for m in term_data_queryset:
-        #row = '<td><a href="{0}">{1}</a></td><td>{2}</td><td><a href="{3}">delete</a></td>'.format(
-          #'/taxonomy/term/{0}/edit/'.format(m[0]),
-          #html.escape(m[1]),
-          #html.escape(m[2]),
-          #'/taxonomy/term/{0}/delete/'.format(m[0]),
-          #)
-        #rows.append(mark_safe(row))
-        
       context['rows'] = rows
-       
+      
       return context
 
 ################
@@ -567,6 +581,8 @@ def term_add(request, treepk):
             th = TermParent(term=term.pk, parent=parentpk)
             th.save()
             #            order = form.save(commit=false)
+            # cache now invalid
+            cache_clear()
             return HttpResponseRedirect(reverse('term-list', args=[treepk]))
         else:
           #? do what?, see edit?
@@ -589,7 +605,10 @@ def term_add(request, treepk):
     
 # TemplateView
 def term_edit(request, pk):
-            
+
+    #treepk = TermTree.objects.get(term__exact=pk).tree
+    treepk = TermTree.objects.get(term__exact=pk).tree
+        
     ## if this is a POST request we need to process the form data
     if request.method == 'POST':
         # create a form instance and validate
@@ -644,6 +663,9 @@ def term_edit(request, pk):
               )
             o.save()
 
+            # cache now invalid
+            cache_clear_on_update()
+            
             msg = 'Term "{0}" was updated'.format(t.title)
             messages.add_message(request, messages.SUCCESS, msg)
             return HttpResponseRedirect('/taxonomy/tree/{0}/term/list'.format(treepk))
@@ -657,7 +679,6 @@ def term_edit(request, pk):
         #? protect
         term = Term.objects.get(pk=pk)
         initial = model_to_dict(term)
-        treepk = TermTree.objects.get(term__exact=pk).tree
         initial['treepk'] = treepk
         f = TermForm(initial=initial)
         
@@ -722,6 +743,9 @@ def _tree_delete(request, pk):
           terms = Term.objects.filter(pk__in=term_ids)
           terms.delete()
           
+          # cache is invalid
+          cache_clear()
+    
           msg = 'The {0} "{1}" was deleted'.format(verbose_name, o.title)
           messages.add_message(request, messages.SUCCESS, msg)
           redirect_url = reverse('tree-list')
@@ -806,6 +830,10 @@ def tree_add(request):
         f = TreeForm(request.POST)
         try:
           f.save()
+          
+          # cache is invalid
+          cache_clear_tree()
+          
           return HttpResponseRedirect(reverse('tree-list'))
         except ValueError:
           #raise Http404("Tree failed to validate")  
@@ -835,6 +863,10 @@ def tree_edit(request, pk):
           # update
           # thows errors if validate dails
           f.save()
+          
+          # cache is invalid
+          cache_clear_tree()
+          
           msg = 'Tree "{0}" was updated'.format(f.cleaned_data['title'])
           messages.add_message(request, messages.SUCCESS, msg)
           return HttpResponseRedirect(reverse('tree-list'))
