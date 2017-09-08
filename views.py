@@ -147,16 +147,19 @@ def tree_data(treepk):
     _tree[treepk] = d
   return d
 
+
 _term = {}
+TermData = namedtuple('TermData', ['title', 'description'])
 
 def term_data(termpk):
   d = _term.get(termpk)
   if (not d):
     term = Term.objects.get(pk__exact=termpk)
-    d = (term.title, term.description)
+    d = TermData(term.title, term.description)
     _term[termpk] = d
   return d
   
+
   
 def cache_clear_on_update():
   '''
@@ -257,7 +260,7 @@ def tree_term_select_titles(tree_pk, exclude=[]):
   b = []
   for e in tree:
     if (not e in exclude):
-      name = term_data(e.pk)[0]
+      name = html.escape(term_data(e.pk).title)
       b.append((e.pk, '-'*e.depth + name))
     
   return b
@@ -439,7 +442,7 @@ class TermListView(TemplateView):
         # single parentage can show the structure of the tree
         tree = tree_terms_ordered(treepk)
         for e in tree:
-          name = term_data(e.pk)[0]
+          name = term_data(e.pk).title
           #? Use unicode nbsp is probably not long-term viable
           # but will do for now?
           title = '\u00A0'*(e.depth*2) + name
@@ -607,7 +610,7 @@ def term_add(request, treepk):
 def term_edit(request, pk):
 
     #treepk = TermTree.objects.get(term__exact=pk).tree
-    treepk = TermTree.objects.get(term__exact=pk).tree
+    treepk = TermTree.objects.get(term__exact=pk).tree.pk
         
     ## if this is a POST request we need to process the form data
     if request.method == 'POST':
@@ -682,19 +685,23 @@ def term_edit(request, pk):
         initial['treepk'] = treepk
         f = TermForm(initial=initial)
         
+    #if (f.is_bound):
+    title = 'Edit term <i>{0}</i>'.format(html.escape(term_data(pk).title))
+    #else:
+     # title = 'Add term to <i>{0}</i>'.format(html.escape(tree_data(treepk)[0]))
+     
     context={
     'form': f,
-    'title': 'Term Edit',
-    'html_title': 'term_edit|' + str(pk),
-    'action': '/taxonomy/term/{0}/edit/'.format(pk),
-    'action_title': 'Save',
+    'title': mark_safe(title),
     'navigators': [
-      mark_safe('<a href="/taxonomy/tree/list"/>tree list</a>'),
-      mark_safe('<a href="/taxonomy/tree/{0}/term/list"/>term list</a>'.format(treepk))
-      ]
+      link('Tree List', reverse('tree-list')),
+      link('Term List', reverse('term-list', args=[treepk]))
+      ],
+    'submit': {'message':"Save", 'url': reverse('term-edit', args=[pk])},
+    'actions': [link('Delete', reverse("term-delete", args=[pk]), attrs={'class':'"button alert"'})],
     }
     
-    return render(request, 'taxonomy/generic_form.html', {'context': context})
+    return render(request, 'taxonomy/generic_form.html', context)
 
 #########################
 def _tree_delete(request, pk):
@@ -776,8 +783,7 @@ def tree_delete(request, pk):
       
 #########################
 # List of Tree Datas
-# Also needs links to terms?
-
+#! Model templates can be merged?
 class TreeListView(TemplateView):
   template_name = "taxonomy/tree_list.html"
 

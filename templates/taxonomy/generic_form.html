@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
 
-{% block html_title %} {{ context.html_title }} {% endblock %}
+{% block html_title %} {{ title|striptags }} {% endblock %}
 
-{% block title %} {{ context.title }} {% endblock %}
+{% block title %} {{ title }} {% endblock %}
 
 {% block head_tags %}
 <script type="text/javascript" src="/static/admin/js/vendor/jquery/jquery.js"></script>
@@ -11,15 +11,20 @@
 {% endblock %}
 
 {% block content %}
-  <form  id="taxonomygeneric-form" action={{ context.action }} method="post">
+  <form  id="taxonomygeneric-form" action={{ submit.url }} method="post">
     {% csrf_token %}
 
     <ul class="admin-list">
-      {{ context.form.as_ul }}
+      {{ form.as_ul }}
     </ul>
     
     <ul class="actions">
-    <li><input type="submit" value={{ context.action_title }} class="button primary" /></li>
+    {% for action in actions %}
+      <li> 
+        {{ action }}
+      </li>
+    {% endfor %}
+    <li><input type="submit" value={{ submit.message }} class="button primary" /></li>
     </ul>
   </form>
 {% endblock %}

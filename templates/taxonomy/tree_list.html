@@ -28,7 +28,12 @@
       <tr> 
         <td>{{ row.title }}</td><td>{{ row.edit }}</td><td>{{ row.list }}</td><td>{{ row.add }}</td>
       </tr>
+    {% empty %}
+          <tr> 
+        <td></td>
+      </tr>
     {% endfor %}
+    
     </tbody>
   </table>
 {% endblock %}
