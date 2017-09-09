@@ -5,7 +5,7 @@ from django import forms
 # Register your models here.
 
 
-from .models import Term, Tree, TermTree, TermParent, TermNode
+from .models import Term, Tree, TermParent, TermNode
 
 
 #class TaxonomySelectField(forms.ChoiceField):
@@ -187,26 +187,26 @@ admin.site.register(TermParent)
 ######################################################
 
 
-class TermTaxonomyForm(forms.ModelForm):
-  taxonomy = TaxonomySelectField()
-  term = AllTermSelectField()
+#class TermTaxonomyForm(forms.ModelForm):
+  #taxonomy = TaxonomySelectField()
+  #term = AllTermSelectField()
   
-  class Meta:
-    model=TermTree
-    fields = ['tree', 'term']
+  #class Meta:
+    #model=TermTree
+    #fields = ['tree', 'term']
 
-class TermTaxonomyAdmin(admin.ModelAdmin):
-  # Not working
-  #raw_id_fields = ("term",)
-  form = TermTaxonomyForm
-  list_select_related = ('term', 'tree')
+#class TermTaxonomyAdmin(admin.ModelAdmin):
+  ## Not working
+  ##raw_id_fields = ("term",)
+  #form = TermTaxonomyForm
+  #list_select_related = ('term', 'tree')
 
- #def get_form(self, request, obj=None, **kwargs):
- #       if request.user.is_superuser:
- #           kwargs['form'] = MySuperuserForm
- #       return super(MyModelAdmin, self).get_form(request, obj, **kwargs)
+ ##def get_form(self, request, obj=None, **kwargs):
+ ##       if request.user.is_superuser:
+ ##           kwargs['form'] = MySuperuserForm
+ ##       return super(MyModelAdmin, self).get_form(request, obj, **kwargs)
   
-admin.site.register(TermTree, TermTaxonomyAdmin)
+#admin.site.register(TermTree, TermTaxonomyAdmin)
 
 ########################################
 

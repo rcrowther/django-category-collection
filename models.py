@@ -4,6 +4,9 @@ from django.core.urlresolvers import reverse
 # Create your models here.
 
 
+class TreeManager(models.Manager):
+  pass
+  
 #? names and slugs do not have to be unique, as we may want to 
 # structure a website, for example, and there may be several 'news'
 # terms under 'sports', 'local', 'culture' etc.
@@ -22,7 +25,6 @@ class Tree(models.Model):
     db_index=True,
     help_text="Name for a tree of categories. Limited to 255 characters.",
     )
-
 
   slug = models.SlugField(
     max_length=64,
@@ -56,6 +58,7 @@ class Tree(models.Model):
     help_text="Priority for display in some templates. Lower value orders first. 0 to 32767.",
     )
 
+  #objects = TreeManager()
     
   def get_absolute_url(self):
     return reverse("tree-detail", kwargs={"slug": self.slug})
@@ -65,31 +68,23 @@ class Tree(models.Model):
     self.title, 
     )
     
-# Separate this as we will often want to know
-# the allowable nodes on a term, without other Taxonomy data
-#class TaxonomyNodetype(models.Model):
-  #taxonomy = models.OneToOneField(
-    #Taxonomy,
-    #models.CASCADE,
-    #primary_key=True,
-    ##editable=False,
-    #help_text="Type of data allowed in the Taxonomy.",
-    #)
+
+
+class TermManager(models.Manager):
+  pass
   
-  #node_type = models.CharField(
-    #max_length=255,
-    #db_index=True,
-    ##editable=False,
-    #help_text="Type of data allowed in the Taxonomy.",
-    #)     
-
-
 #! not to self?
 #! node too general
 class Term(models.Model):
   '''
   parent can be null, for top level. Therefore can be root also.
   '''
+  # auto destruction and detection is nice. But so is manual insert.
+  tree = models.IntegerField(
+    db_index=True,
+    help_text="A Tree associated with this Term.",
+    )
+    
   # Not unique. All terms in same table, different taxonomies.
   title = models.CharField(
     max_length=255,
@@ -119,6 +114,8 @@ class Term(models.Model):
     db_index=True,
     help_text="Priority for display in some templates. Lower value orders first. 0 to 32767.",
     )
+
+  #objects = TermManager()
 
   #@property
   #def children(self):
@@ -212,32 +209,7 @@ class TermParent(models.Model):
     self.parent, 
     )
     
-# Associate Terms with a Tree
-#? The arguments here are less strong for TermParent (no multiple
-# associations) but getting ids only is likely frequent, so this can be
-# managed manually too (if only for clarity of code).
-class TermTree(models.Model):
-  term = models.OneToOneField(
-    Term,
-    on_delete=models.CASCADE,
-    primary_key=True,
-    help_text="A Term associated with a Tree.",
-    )
-    
-  tree = models.ForeignKey(
-    Tree, 
-    on_delete=models.CASCADE,
-    db_index=True,
-    help_text="A Tree associated with a Term.",
-    )
-    
-    #? method for all terms for a tree?
-  def __str__(self):
-    return "{0}-{1}".format(
-    self.term.title, 
-    self.tree.title, 
-    )
-    
+
 
 # We want to 
 # - de-typify the object connection

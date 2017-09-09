@@ -11,7 +11,7 @@ from django.utils import html
 from django.utils.safestring import mark_safe
 from itertools import chain
 
-from .models import Term, Tree, TermTree, TermParent
+from .models import Term, Tree, TermParent
 
 #from blunt_admin.views import ModelAdmin2
 from django.http import HttpResponseRedirect
@@ -107,15 +107,15 @@ from django.http import HttpResponseRedirect
 ## helpers
 
   
-def tree_terms_for_element(tree_pk, pk):
+def tree_terms_for_element(tree_pk, epk):
   '''
-  Get associated terms
+  Get terms associated with an element, within a tree.
   Ordered by weight.
+  
   @return queryset of terms
   '''
-  term_for_tree_ids = TermTree.objects.filter(tree__exact=tree_pk).values_list('term', flat=True)
-  term_ids = TermNode.objects.filter(node__exact=pk, term__in=term_for_tree_ids).values_list('term', flat=True)
-  return Term.objects.order_by('weight').filter(pk__exact=term_ids)
+  term_ids = TermNode.objects.filter(node__exact=epk).values_list('term', flat=True)
+  return Term.objects.order_by('weight').filter(tree__exact=tree_pk, pk__exact=term_ids)
 
 
 def tree_term_titles(tree_pk):
@@ -123,8 +123,7 @@ def tree_term_titles(tree_pk):
   Get terms in a tree
   @return list of term data tuples (pk, title)
   '''
-  term_pks = TermTree.objects.filter(tree__exact=tree_pk)
-  return Term.objects.filter(pk__in=term_pks).values_list('pk', 'title')
+  return Term.objects.filter(tree__exact=tree_pk).values_list('pk', 'title', 'description')
 
 
 # Cache of hierarchial associations
@@ -184,9 +183,6 @@ def cache_clear():
 def children(treepk):
   return _children[treepk]
 
-#def term_children_pk(termpk):
-
-#def term_parents_pk(termpk):
   
 def parents(treepk):
   return _parents[treepk]
@@ -194,16 +190,28 @@ def parents(treepk):
 TermFTData = namedtuple('TermFTData', ['pk', 'depth', 'parents'])
     
 #? rename terms_flat_tree?
-def tree_terms_ordered(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=None):
+def tree_terms_ordered(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=-1):
   '''
-  Get terms in a tree
-  @return list of tuples (termpk, depth. [parent_ids]). Root ids will be parented by [-1].
+  Return data from Terms as a flat tree.
+  Each item is an TermFTData (Term 'pk' extended with 'depth' and
+  'parents' attributes).
+  Note that depth starts at 0.
+  
+  @param parent_pk start from the children of this term.
+  @param max_depth prune the tree beyond this value. Corresponds with
+   depth (value 0 will print one row, if data is available, at depth 0) 
+  @return list of TermFTData(termpk, depth. [parent_ids]). Root ids will
+   be parented by [-1].
   '''
   cached = _children.get(tree_pk)
   if (not cached):
-    term_pks = TermTree.objects.order_by('weight', 'title').filter(tree__exact=tree_pk)
+    #treeterm_pks = TermTree.objects.filter(tree__exact=tree_pk)
+    term_pks = Term.objects.order_by('weight', 'title').filter(tree__exact=tree_pk).values_list('pk', flat=True)
     term_parents = TermParent.objects.filter(term__in=term_pks)
-    _children[tree_pk] = {}
+    #print(str(TermParent.objects.filter(term__in=term_pks).query))
+    # ensure we start with -1 kv present, we may look for that
+    # as default
+    _children[tree_pk] = {-1:[]}
     _parents[tree_pk] = {}
     for e in term_parents:
       if (e.parent in _children[tree_pk]):
@@ -217,55 +225,92 @@ def tree_terms_ordered(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=None):
 
   children = _children[tree_pk]
   parents = _parents[tree_pk]
-  _max_depth = max_depth if max_depth else len(children)
+  _max_depth =  len(children) if max_depth < 0 else max_depth
   tree = []
 
-  # Keeps track of the parents we have to process, the last entry is used
-  # for the next processing step.
+  if (not parent_pk in children):
+    # parent_pk was probably a leaf, return empty
+    return tree
+    
+  # Stack of levels to process. Each level is an iter.
+  # preload with the first set of children
   child_pks = children[parent_pk]
-  #
   stack = [iter(child_pks)]
 
   while stack:
-    #! depth counting from 1? Think I prefer 0?
-    depth = len(stack)
     it = stack.pop()
+    depth = len(stack)
 
     while(True):
       try:
-        pk = it.__next__()
+          pk = it.__next__()
       except StopIteration:
         break
       tree.append(TermFTData(pk, depth, parents[pk]))
-      
       child_pks = children.get(pk)
-      ## check for children
-      # only continue down if not exceeded the depth and children exist
+      #print('max:')
+      #print(str(_max_depth))
+      #print(str(depth))
       if (depth < _max_depth and child_pks):
-        # append current iter, to go back to
-        stack.append(it)
-        # append new depth of iter
-        stack.append(iter(child_pks))
-        break
+          # append current iter, to go back to
+          stack.append(it)
+          # append new depth of iter
+          stack.append(iter(child_pks))
+          break
         
   return tree
   
+
+#def term_children_pk(termpk):
+
+def term_parent_pks(tree_pk, pk):
+  if (not tree_pk in _parents):
+    tree_terms_ordered(tree_pk)
+  return _parents[tree_pk][pk]
   
 def term_node_count(termpk):
   return TermNode.objects.filter(term__exact=termpk).count()
 
 #! filter for illegal where?  
 def tree_term_select_titles(tree_pk, exclude=[]):
+  '''
+  List of titles in a tree.
+  The titles have a representation of structure by indenting with '-'.
+   
+  @param exclude list of pks to remove from the list. Numeric type (not string)
+  @return list [(pk, title)...]
+  '''
   tree = tree_terms_ordered(tree_pk)
-  b = []
+  #print('exclude:')
+  #print(str(exclude))
+  #? assert a root item? Can always be added here?
+  b = [(-1, '<root>')]
   for e in tree:
-    if (not e in exclude):
+    if (not e.pk in exclude):
+      #print('pk:')
+      #print(str(e.pk))
       name = html.escape(term_data(e.pk).title)
       b.append((e.pk, '-'*e.depth + name))
     
   return b
   #list(chain([(TermParent.NO_PARENT, 'root')], tree_term_titles(tree_pk)))
 
+def term_descendant_pks(treepk, pk=TermParent.NO_PARENT):
+    '''
+    Find all descendants of a term
+    @return list of child ids
+    '''
+    t = tree_terms_ordered(treepk, pk)
+    return [e.pk for e in t]
+    
+def ancestor_pks(treepk, pk=TermParent.NO_PARENT):
+    '''
+    Find all parent anscestors
+    @return list of child ids
+    '''
+    #t = tree_terms_ordered(treepk)
+    #return [e.pk for e in t]
+  
 def _term_delete(pk):
   stash=[pk]
   while stash:
@@ -279,11 +324,17 @@ def _term_delete(pk):
     t.delete()
     tp = TermParent.objects.filter(term__exact=tpk)
     tp.delete()
-    
-    # cache is invalid
-    cache_clear()
+
 
       
+#######################################
+## code-level templates
+# (Mr. Lazy)
+      
+def tmpl_instance_message(msg, title):
+  return mark_safe('{0} <i>{1}</i>.'.format(msg, html.escape(title)))
+  
+  
 ########################################
 from django.forms import ModelForm
 
@@ -302,73 +353,41 @@ from django.contrib.admin.utils import quote, unquote
 
         
 def _term_delete_action(request, pk):
-      app_label = Term._meta.app_label
-      verbose_name = Term._meta.verbose_name
-
-      # The object exists?
+  
+      # whatever we are doing, we need the tree pk
       try:
-        o = Term.objects.get(pk__exact=pk)
-      except Exception as e:
+        t = Term.objects.get(pk__exact=pk)
+        treepk = t.tree
+      except Term.DoesNotExist:
         # bail out to the main list
-        msg = "{0} with ID '{1}' doesn't exist. Perhaps it was deleted?".format(
-            Term._meta.verbose_name,
+        msg = "Term with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
             unquote(pk)
         )
         messages.add_message(request, messages.WARNING, msg) 
         return HttpResponseRedirect(reverse('tree-list'))
 
-      # retrieve the treepk
-      # Passing the value through a form means using the template,
-      # which is no fun.
-      # This horrible retrieval may only be temporary. May remove
-      # Django automanagement of the join tables?
-      tt = None
-      try:
-        tt=TermTree.objects.get(term__exact=pk)
-      except Exception as e:
-        msg = "{0} for Term ID '{1}' is not registered? The database may not be coherent!".format(
-            Tree._meta.verbose_name,
-            unquote(pk)
-        )
-        messages.add_message(request, messages.ERROR, msg)
-        return HttpResponseRedirect(reverse('tree-list'))
-        
-      treepk=tt.tree.pk
                      
       if (request.method == 'POST'):
           # delete confirmed
-          #! Should delete children too
 
-          #print(str(treepk))
-          #raise Exception
-          
-          #? logging
-          #! deletion of descendants
-          #o.delete()
-          #? model delete cascades seem to delete other table data for us.
-          #tt = TermTree(taxonomy=tree, term=term)
-          #tt.delete()
-          #th = TermParent.objects.filter(term__exact=pk)
-          #th.delete()
           _term_delete(pk)
-          
-          msg = 'The {0} "{1}" was deleted'.format(verbose_name, o.title)
+                        
+          # cache is invalid
+          cache_clear()
+    
+          msg = tmpl_instance_message("Deleted Term", t.title)
           messages.add_message(request, messages.SUCCESS, msg)
-          redirect_url = reverse('term-list', args=[treepk])
-          return HttpResponseRedirect(redirect_url)
+          return HttpResponseRedirect(reverse('term-list', args=[treepk]))
 
       message = '<p>Are you sure you want to delete the Term "{0}"?</p><p>Deleting a term will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a term will not delete elements attached to the term)</p>'.format(
-      html.escape(o.title)
-      )
-      
+        html.escape(t.title)
+        )
+
       context={
-        'title': 'Term Delete',
-        'html_title': 'term_delete',
+        'title': tmpl_instance_message("Delete term", t.title),
         'message': mark_safe(message),
-        'submit': {'message':"Yes, I'm sure", 'url': '/taxonomy/term/{0}/delete/'.format(pk)},
-        'actions': [mark_safe('<a href="/taxonomy/tree/{0}/term/list" class="button">No, take me back</a>'.format(treepk))],
-        'model_name': 'Term',
-        'instance_name': html.escape(o.title),
+        'submit': {'message':"Yes, I'm sure", 'url': reverse('term-delete', args=[pk])},
+        'actions': [link('No, take me back', reverse("term-list", args=[treepk]), attrs={'class':'"button"'})],
       } 
       return render(request, 'taxonomy/delete_confirm_form.html', context)
 
@@ -431,8 +450,7 @@ class TermListView(TemplateView):
       if (not td.is_single):
         # multiple can not show the structure of the tree
         # (...it could if it was small, but let's be consistent)
-        term_id_queryset = TermTree.objects.filter(tree__exact=context['treepk']).values_list('term', flat=True)
-        term_data_queryset = Term.objects.filter(pk__in=term_id_queryset).values_list('pk', 'title')
+        term_data_queryset = Term.objects.order_by('weight', 'title').filter(tree__exact=context['treepk']).values_list('pk', 'title')
         for e in term_data_queryset:
           rows.append({
             'view': link(e.title, reverse('term-preview', e.pk)),
@@ -485,23 +503,33 @@ from django import forms
 class TermForm(forms.Form):
     #? can auto-build parameters from the model?
     # prefilled and hidden, in any circumstance
-    treepk = forms.IntegerField(max_value=100, widget=forms.HiddenInput())
+    #treepk = forms.IntegerField(max_value=100, widget=forms.HiddenInput())
     #? cache
-    parent = forms.IntegerField(max_value=100, widget=forms.Select())
+    
+    # Not a model form field
+    # has a placeholding widget
+    parents = forms.IntegerField(max_value=100, widget=forms.Select())
     #, widget=forms.Select(choices=current_termdata))
 
   #???slug field?
+    #! how big is the field?
+    tree = forms.IntegerField(min_value=0, max_value=32767, widget=forms.HiddenInput())
     title = forms.CharField(label='Title', max_length=64)
     slug = forms.SlugField(label='Slug', max_length=64)
+    description = forms.CharField(required= False, label='Description', max_length=255)
     weight = forms.IntegerField(label='Weight', min_value=0, max_value=32767)
     #instance = None
     
     def __init__(self, *args, **kwargs):
-      #if ('instance' in kwargs):
-        #term = kwargs.pop('instance')
-        #kwargs['initial'] = self.model_to_dict(term)
-        
+      # awkward---pop non-standard data before construction 
+      parent_choices=kwargs['initial'].pop('parent_choices')
+
       super().__init__(*args, **kwargs)
+      
+      # data is built lazy, thankyou, otherwise we'd never get
+      # selected data in there too
+      self.fields['parents'].widget.choices=parent_choices
+
       #? cache
       # get potential parents.
       #treepk = kwargs['initial'].treepk if ('initial' in kwargs) else args[0]['treepk']
@@ -512,7 +540,9 @@ class TermForm(forms.Form):
       #print('chain:')
       #for e in tree_term_select_titles(1):
       #  print(str(e))
-      self.fields['parent'].widget.choices=tree_term_select_titles(1)
+      #if (not form.bounded):
+        # must be request
+      #self.fields['parent'].widget.choices=tree_term_select_titles(1)
       # not working...
       #self.fields['parent'].widget.selected=kwargs['initial']['pk']
           
@@ -539,87 +569,105 @@ def model_to_dict(instance):
     return data
   
 
+def tree_pk(termpk):
+    try:
+      treepk = Tree.objects.get(term__exact=termpk).tree
+    except Tree.DoesNotExist:
+      raise Http404('The requested admin page does not exist.')
+    return treepk
 
+#OK  
 def term_add(request, treepk):
-    url_base = '/taxonomy/term/'
-  
+    # check the treepk exists
+    try:
+      Tree.objects.get(pk__exact=treepk)
+    except Tree.DoesNotExist:
+      raise Http404('The requested admin page does not exist.')
+    
     if request.method == 'POST':
-        # create a form instance and populate it with data from the request:
-        form = TermForm(request.POST)
-        # check whether it's valid:
-        if form.is_valid():
-            # process the data in form.cleaned_data as required
-            # ...
-            # redirect to a new URL:
-            # URL base not working?
-            #print( str(form.cleaned_data))
-          #try:
-            print(str(form.cleaned_data))
-            
-            #! catch repeated terms?
-            #! catch circular references?
-            
-            # get the validated data
-            d = form.cleaned_data.copy()
-            
-            # remove our extra form items
-            treepk = d.pop('treepk')
-            parentpk = d.pop('parent')
-            print('treepk, parent:')
-            print(str(treepk))
-            print(str(parentpk))
-            #Term(slug= 'walks', title= 'walks', weight= 1)
+        # submitted data, populate
+        f = TermForm(request.POST,
+                  init=dict(parent_choices = tree_term_select_titles(int(treepk)))
+)
 
-            #! Shambolic, expensive query and writing?
-            term = Term(**d)            
-            term.save()
-            tree=Tree.objects.get(pk=treepk)
-            #print('newid:')
-            #print(new_pk)
-            tt = TermTree(tree=tree, term=term)
-            tt.save()
-            # handle the 'set to null' problem (parentpk = 0)
-            #! handle multiple parents
-            #parentpk = parentpk if (parentpk > 0) else None
-            th = TermParent(term=term.pk, parent=parentpk)
-            th.save()
-            #            order = form.save(commit=false)
-            # cache now invalid
+        ## check whether it's valid:
+        if f.is_valid():
+
+            # remove the non-model form field
+            parentpks = f.cleaned_data.pop('parents')
+
+            # add the missing treepk
+            #f.cleaned_data['tree'] = treepk
+            #print(str(f.cleaned_data))
+            
+            
+            # Save the Term 
+            t = Term(**f.cleaned_data)            
+            t.save()
+          
+            # Set the parent
+            ##! handle multiple parents
+            tp = TermParent(term=t.pk, parent=parentpks)
+            tp.save()
+            
             cache_clear()
+          
+            msg = tmpl_instance_message("Created new Term", f.cleaned_data['title'])
+            messages.add_message(request, messages.SUCCESS, msg)
             return HttpResponseRedirect(reverse('term-list', args=[treepk]))
+            
         else:
-          #? do what?, see edit?
-          raise Http404("Term failed to validate")  
+            msg = "Please correct the errors below."
+            messages.add_message(request, messages.ERROR, msg)
+            # falls through to another render
     else:
-        # unbound
-        # but bind with treepk... but this produces errors?
-        #form = TermForm({'treepk': treepk})
-        form = TermForm(initial={'treepk': treepk, 'weight': 0})
-        #form = TermForm(treepk=treepk)
-        context={
-        'form': form,
-        'title': 'Term Add',
-        'html_title': 'term_add',
-        'action': '/taxonomy/tree/{0}/term/add/'.format(treepk),
-        'action_title': 'Save',
-        }    
-    return render(request, 'taxonomy/generic_form.html', {'context': context})
-    
-    
+        # empty form for add
+        # set parent to the root (always exists, as an option) 
+        f = TermForm(initial=dict(
+          tree = treepk,
+          weight = 0,
+          parent_choices = tree_term_select_titles(int(treepk)),
+          parent = -1,
+          ))
+        
+    context={
+    'form': f,
+    'title': 'Add Term',
+    'navigators': [
+      link('Term List', reverse('term-list', args=[treepk])),
+      ],
+    'submit': {'message':"Save", 'url': reverse('term-add', args=[treepk])},
+    'actions': [],
+    }    
+
+    return render(request, 'taxonomy/generic_form.html', context)
+
+
 # TemplateView
 def term_edit(request, pk):
+    # whatever we are doing, we need the tree id
+    try:
+      treepk = Term.objects.get(pk__exact=pk).tree
+      single_parent = Tree.objects.get(pk__exact=treepk).is_single
+    except Term.DoesNotExist:
+      raise Http404('The requested admin page does not exist.')
 
-    #treepk = TermTree.objects.get(term__exact=pk).tree
-    treepk = TermTree.objects.get(term__exact=pk).tree.pk
-        
-    ## if this is a POST request we need to process the form data
+    print('pk:')
+    print(type(pk))
+    
+
+    
+    
+    ## submitted update form
     if request.method == 'POST':
         # create a form instance and validate
         #t = Term.objects.get(pk=pk)
         #initial = model_to_dict(t)
 
         #f = TermForm(request.POST, initial=initial)
-        f = TermForm(request.POST)
+        f = TermForm(request.POST,
+                initial=dict(parent_choices = tree_term_select_titles(treepk, [int(pk)]))
+        )
         #try:
 
         if (not f.is_valid()):
@@ -632,59 +680,91 @@ def term_edit(request, pk):
         else:
             # valid
 
-            
+            # remove the non-model form field
+            parents = f.cleaned_data.pop('parents')
+
+            # add the missing treepk
+            #f.cleaned_data['tree'] = treepk
+            print('f.cleaned_data')            
+            f.cleaned_data['pk'] = pk         
+            print(str(f.cleaned_data)) 
             # update the object
-            t=Term(
-              title=f.cleaned_data['title'],
-              slug=f.cleaned_data['slug'],
-              weight=f.cleaned_data['weight'],
-              )
+            t=Term(**f.cleaned_data)
             t.save()
             
             # Should use this? Not changed...
             new_pk = t.pk
-            treepk = f.cleaned_data['treepk']
+            treepk = t.tree
             #? parent between trees Not Allowed?
             #if (f.fields['treepk'].has_changed()):
 
-            #if (f.fields['parent'].has_changed()):
             print('POST')
             print(str(f.initial))
             
-            # fix parents. 
+            # update parents. 
             # may not be efficient, but easier to do this wether changed
             # or not, otherwise must compare two potential sets of
             # parents, and do read/write anyhow
-            delete_set = TermTree.objects.filter(term__exact=new_pk)
+            #! better to test for change?
+            
+            # if this is single parent, the only object it cna not be 
+            # parented by is itself.
+            #! handle mutiple
+            delete_set = TermParent.objects.filter(term__exact=t.pk)
             delete_set.delete()
-
-            tree = Tree.objects.get(pk__exact=treepk)
-              
-            o = TermTree(
-              term=t,
-              tree=tree,
+            
+            tp = TermParent(
+              term=t.pk,
+              parent=parents
               )
-            o.save()
+            tp.save()
 
             # cache now invalid
-            cache_clear_on_update()
+            cache_clear()
             
-            msg = 'Term "{0}" was updated'.format(t.title)
+            msg = tmpl_instance_message("Updated Term", t.title)
             messages.add_message(request, messages.SUCCESS, msg)
-            return HttpResponseRedirect('/taxonomy/tree/{0}/term/list'.format(treepk))
+            return HttpResponseRedirect(reverse('term-list', args=[treepk]))
             
         #except ValueError:
         #  raise Http404("Term data failed to update")          
 
 
     else:
-        # get the object
-        #? protect
-        term = Term.objects.get(pk=pk)
+        # requested update form
+        parents = term_parent_pks(treepk, int(pk))
+
+        #if(single_parent):
+          # easy, can't be a parent to itself, but all else is ok
+        # exclude itself as a paremt, as a basic
+        exclude = [int(pk)]
+        #else:
+          # dont admit a term to be a child of itself or descendants 
+          #children = tree_terms_ordered(treepk, parent_pk=int(pk))
+          #exclude = term_descendant_pks(treepk)
+          #exclude.append(int(pk))
+                    
+        #get current data manually
+        try:
+            term = Term.objects.get(pk=pk)
+        except Term.DoesNotExist:
+          raise Http404('The requested admin page does not exist.')
+          
         initial = model_to_dict(term)
-        initial['treepk'] = treepk
+        # add in the non-model treepk field inits
+        initial['parents'] = parents[0]
+        initial['parent_choices'] = tree_term_select_titles(treepk, exclude)
+
         f = TermForm(initial=initial)
         
+        #w = forms.CheckboxSelectMultiple(
+          #help_text=u'(Required) 3 days must be selected',
+          #choices=tree_term_select_titles(treepk, exclude)
+          #)
+        #f.fields['parent'].widget = w
+        # fix the parent widget
+        #f.fields['parent'].widget.choices=tree_term_select_titles(treepk, exclude)
+
     #if (f.is_bound):
     title = 'Edit term <i>{0}</i>'.format(html.escape(term_data(pk).title))
     #else:
@@ -705,15 +785,10 @@ def term_edit(request, pk):
 
 #########################
 def _tree_delete(request, pk):
-      #? into is all similar - DRY
-      #? Post is different
-      app_label = Tree._meta.app_label
-      verbose_name = Tree._meta.verbose_name
 
-      
       # The object exists?
       try:
-        o = Tree.objects.get(pk__exact=pk)
+        t = Tree.objects.get(pk__exact=pk)
       except Exception as e:
         # bail out to the main list
         msg = "{0} with ID '{1}' doesn't exist. Perhaps it was deleted?".format(
@@ -728,46 +803,34 @@ def _tree_delete(request, pk):
       if (request.method == 'POST'):
           # delete confirmed
                     
-          #print(str(treepk))
-          #raise Exception
+          # delete tree
+          t.delete()
           
-          #? logging
-          # deletion...
-          # ...tree
-          o.delete()
-          
-          # ...term associations
-          term_ids = TermTree.objects.filter(tree__exact=pk)
-          #, term=term)
-          term_ids.delete()
-          
-          # ...term hierarchy
-          #? no need to check parents too
-          tree_hierarchy = TermParent.objects.filter(term__in=term_ids)
-          tree_hierarchy.delete()
-          
-          # ...terms
-          terms = Term.objects.filter(pk__in=term_ids)
+          # terms
+          terms = Term.objects.filter(tree__in=pk)
           terms.delete()
+          
+          # hierarchy
+          tree_hierarchy = TermParent.objects.filter(term__in=treepks)
+          tree_hierarchy.delete()
           
           # cache is invalid
           cache_clear()
     
-          msg = 'The {0} "{1}" was deleted'.format(verbose_name, o.title)
+          msg = tmpl_instance_message("Deleted tree", t.title)
           messages.add_message(request, messages.SUCCESS, msg)
-          redirect_url = reverse('tree-list')
-          return HttpResponseRedirect(redirect_url)
+          return HttpResponseRedirect(reverse('tree-list'))
 
-      message = '<p>Are you sure you want to delete the Tree "{0}"?</p><p>Deleting a tree will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a tree will not delete elements attached to the terms)</p>'.format(
-      html.escape(o.title)
-      )
+      else:
+          message = '<p>Are you sure you want to delete the Tree "{0}"?</p><p>Deleting a tree will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a tree will not delete elements attached to the terms)</p>'.format(
+              html.escape(o.title)
+              )
       
       context={
-        'title': 'Tree Delete',
-        'html_title': 'tree_delete',
+        'title': tmpl_instance_message("Delete tree", t.title),
         'message': mark_safe(message),
-        'submit': {'message':"Yes, I'm sure", 'url': '/taxonomy/tree/{0}/delete/'.format(pk)},
-        'actions': [mark_safe('<a href="/taxonomy/tree/list" class="button">No, take me back</a>')],
+        'submit': {'message':"Yes, I'm sure", 'url': reverse('tree-delete', args=[pk])},
+        'actions': [link('No, take me back', reverse("tree-list", args=[treepk]), attrs={'class':'"button"'})],
         'model_name': 'Taxonomy',
         'instance_name': html.escape(o.title),
       } 
@@ -797,7 +860,7 @@ class TreeListView(TemplateView):
       context['messages'] = messages.get_messages(self.request)
 
       rows = []
-      tree_queryset = Tree.objects.all().order_by('weight', 'title').values_list('pk', flat=True)
+      tree_queryset = Tree.objects.order_by('weight', 'title').all().values_list('pk', flat=True)
 
       for pk in tree_queryset:
           title = tree_data(pk).title
@@ -817,84 +880,80 @@ class TreeListView(TemplateView):
 class TreeForm(ModelForm):
     class Meta:
         model = Tree
-        fields = ['title', 'slug', 'is_single', 'is_unique', 'weight']
+        fields = ['title', 'slug', 'description', 'is_single', 'is_unique', 'weight']
         
 
+  
 #! add 'parent' field
 def tree_add(request):
     
     if request.method == 'POST':
-        # create a form instance and populate it with data from the request:
-        #form = TermForm(request.POST)
-        # check whether it's valid:
-        #if form.is_valid():
-            # process the data in form.cleaned_data as required
-            # ...
-            # redirect to a new URL:
-            # URL base not working?
-            #print( str(form.cleaned_data))
+        # submitted data, populate
         f = TreeForm(request.POST)
+        
         try:
           f.save()
-          
-          # cache is invalid
           cache_clear_tree()
-          
-          return HttpResponseRedirect(reverse('tree-list'))
-        except ValueError:
-          #raise Http404("Tree failed to validate")  
-          msg = "Tree failed to validate?"
+          msg = tmpl_instance_message("Created new Tree", f.cleaned_data['title'])
           messages.add_message(request, messages.ERROR, msg)
-          #? falls through to another render?
+          return HttpResponseRedirect(reverse('tree-list'))
+          
+        except ValueError:
+          msg = "Please correct the errors below."
+          messages.add_message(request, messages.ERROR, msg)
+          # falls through to another render
     else:
+        # empty form for add
         f = TreeForm()
+        
     context={
     'form': f,
-    'title': 'Tree Add',
-    'html_title': 'tree_add',
-    'action': '/taxonomy/tree/add/',
-    'action_title': 'Save',
+    'title': 'Add Tree',
+    'navigators': [
+      link('Tree List', reverse('tree-list')),
+      ],
+    'submit': {'message':"Save", 'url': reverse('tree-add')},
+    'actions': [],
     }    
-    return render(request, 'taxonomy/generic_form.html', {'context': context})
+
+    return render(request, 'taxonomy/generic_form.html', context)
     
     
 def tree_edit(request, pk):
-    url_base = '/taxonomy/tree/{0}'.format(pk)
-    ## if this is a POST request we need to process the form data
     if request.method == 'POST':
         # create a form instance and populate it with data from the request:
-        a = Tree.objects.get(pk=pk)
-        f = TreeForm(request.POST, instance=a)
+        #t = Tree.objects.get(pk=pk)
+        f = TreeForm(request.POST)
         try:
           # update
-          # thows errors if validate dails
+          # thows errors if validate fails
           f.save()
           
           # cache is invalid
           cache_clear_tree()
           
-          msg = 'Tree "{0}" was updated'.format(f.cleaned_data['title'])
+          msg = tmpl_instance_message("Update tree", f.cleaned_data['title'])
           messages.add_message(request, messages.SUCCESS, msg)
           return HttpResponseRedirect(reverse('tree-list'))
         except ValueError:
           msg = "Tree failed to validate?"
           messages.add_message(request, messages.ERROR, msg)
-    # if a GET (or any other method) we'll create a blank form
     else:
         #? protect
-        o = Tree.objects.get(pk=pk)
-        f = TreeForm(instance=o)
+        t = Tree.objects.get(pk=pk)
+        f = TreeForm(instance=t)
         
+    title = 'Edit tree <i>{0}</i>'.format(html.escape(tree_data(pk).title))
     context={
     'form': f,
-    'title': 'Tree Edit',
-    'html_title': 'tree_edit|' + str(pk),
-    'action': url_base + '/edit/',
+    'title': mark_safe(title),
     'action_title': 'Save',
     'navigators': [
-      mark_safe('<a href="/taxonomy/tree/list"/>tree list</a>'),
-      mark_safe('<a href="/taxonomy/tree/{0}/term/list"/>term list</a>'.format(pk))
+      link('Tree List', reverse('tree-list')),
+      link('Term List', reverse('term-list', args=[pk]))
       ],
+    'submit': {'message':"Save", 'url': reverse('tree-edit', args=[pk])},
+    'actions': [link('Delete', reverse("tree-delete", args=[pk]), attrs={'class':'"button alert"'})],
     }
-    
-    return render(request, 'taxonomy/generic_form.html', {'context': context})
+
+    return render(request, 'taxonomy/generic_form.html', context)

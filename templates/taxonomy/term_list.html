@@ -28,6 +28,10 @@
       <tr> 
         <td>{{ row.view }}</td><td>{{ row.edit }}</td>
       </tr>
+    {% empty %}
+      <tr> 
+        <td>No term data to display</td>
+      </tr>
     {% endfor %}
     </tbody>
   </table>

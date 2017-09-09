@@ -1,14 +1,13 @@
 {% extends "base.html" %}
 
 
-{% block html_title %} {{ html_title }} {% endblock %}
+{% block html_title %} {{ title|striptags }} {% endblock %}
 
 {% block title %} Are you sure? {% endblock %}
 
 {% block content %}
   <form  id="deleteconfirm-form" action={{ submit.url }} method="post">
     {% csrf_token %}
-
 
     {{ message }}
     
