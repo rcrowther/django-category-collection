@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.http import Http404
 from django.utils import html
 from django.utils.safestring import mark_safe
+from django.views.decorators.cache import never_cache
 from itertools import chain
 
 from .models import Term, Tree, TermParent
@@ -357,6 +358,7 @@ def link(text, href, attrs={}):
     html.escape(text)
     ))
   
+
 class TermListView(TemplateView):
   template_name = "taxonomy/term_list.html"
   
@@ -433,16 +435,30 @@ class TermForm(forms.Form):
     
     # Not a model form field
     # has a placeholding widget
-    parents = forms.IntegerField(max_value=100, widget=forms.Select())
+    parents = forms.IntegerField(max_value=100, widget=forms.Select(),
+    help_text="Category above ('root' is top-level)."
+    )
     #, widget=forms.Select(choices=current_termdata))
 
   #???slug field?
     #! how big is the field?
     tree = forms.IntegerField(min_value=0, max_value=32767, widget=forms.HiddenInput())
-    title = forms.CharField(label='Title', max_length=64)
-    slug = forms.SlugField(label='Slug', max_length=64)
-    description = forms.CharField(required= False, label='Description', max_length=255)
-    weight = forms.IntegerField(label='Weight', min_value=0, max_value=32767)
+    
+    title = forms.CharField(label='Title', max_length=64,
+    help_text="Name for the category. Limited to 255 characters."
+    )
+    
+    slug = forms.SlugField(label='Slug', max_length=64,
+    help_text="Short name for use in urls."
+    )
+    
+    description = forms.CharField(required= False, label='Description', max_length=255,
+    help_text="Description of the category. Limited to 255 characters."
+    )
+    
+    weight = forms.IntegerField(label='Weight', min_value=0, max_value=32767,
+    help_text="Priority for display in some templates. Lower value orders first. 0 to 32767."
+    )
     #instance = None
     
     def __init__(self, *args, **kwargs):

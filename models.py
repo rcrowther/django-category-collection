@@ -6,7 +6,32 @@ from django.core.urlresolvers import reverse
 
 class TreeManager(models.Manager):
 
-    
+  # unused?
+  def update(self,  pk, title, slug, description, is_single, is_unique, weight, parents=None):
+    t = Tree( 
+      pk=pk,
+      tree=treepk,
+      title=title,
+      slug=slug,
+      description=description,
+      is_single=is_single,
+      is_unique=is_unique,
+      weight=weight
+      )
+      
+    t.save()
+
+    # set parents
+    #! Right now, only hammering single parent in?
+    if (parents):
+      TermParent(
+        term=pk,
+        parent=parents
+        ).save()
+
+    return t
+
+
   def delete(self, pk):
     # term data
     all_term_pks = list(Term.objects.filter(tree__exact=pk).values_list('pk', flat=True))

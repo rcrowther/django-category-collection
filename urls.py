@@ -1,4 +1,6 @@
 from django.conf.urls import url
+from django.views.decorators.cache import never_cache
+
 #treelist_view, treeadd_view # tree_view #, TermDetailView
 from generic_view_template.views import GenericObjectView, GenericQuerySetAnchorView
 from taxonomy.views import TreeListView, TermListView
@@ -76,21 +78,21 @@ urlpatterns = [
   #url(r'^term/(?P<pk>[-\w]+)/$', GenericObjectView.as_view(model=Term,)),
   
   # Order is important, actions before slugs
-  url(r'^tree/(?P<treepk>\d+)/term/list/$', TermListView.as_view(), name='term-list'),
+  url(r'^tree/(?P<treepk>\d+)/term/list/$', never_cache(TermListView.as_view()), name='term-list'),
   #url(r'^term/list/$', TermListView.as_view()),
-  url(r'^term/(?P<pk>\d+)/edit/$', views.term_edit, name='term-edit'),
+  url(r'^term/(?P<pk>\d+)/edit/$', never_cache(views.term_edit), name='term-edit'),
   url(r'^term/(?P<pk>\d+)/delete/$', views.term_delete, name='term-delete'),
-  url(r'^tree/(?P<treepk>\d+)/term/add/$', views.term_add, name='term-add'),
+  url(r'^tree/(?P<treepk>\d+)/term/add/$', never_cache(views.term_add), name='term-add'),
   url(r'^term/(?P<pk>\d+)/$', GenericObjectView.as_view(model=Term,), name='term-preview'),
   url(r'^term/(?P<slug>[-\w]+)/$', GenericObjectView.as_view(model=Term,), name='term-detail'),
 
-  url(r'^tree/list/$', TreeListView.as_view(), name='tree-list'),
-  url(r'^tree/(?P<pk>\d+)/edit/$', views.tree_edit, name='tree-edit'),
+  url(r'^tree/list/$',  never_cache(TreeListView.as_view()), name='tree-list'),
+  url(r'^tree/(?P<pk>\d+)/edit/$', never_cache(views.tree_edit), name='tree-edit'),
   url(r'^tree/(?P<pk>\d+)/delete/$', views.tree_delete, name='tree-delete'),
-  url(r'^tree/add/$', views.tree_add, name='tree-add'),
+  url(r'^tree/add/$', never_cache(views.tree_add), name='tree-add'),
   url(r'^tree/(?P<slug>[-\w]+)/$', GenericObjectView.as_view(model=Tree,), name='tree-detail'),
 
-  url(r'^$', TreeListView.as_view(), name='tree-list'),
+  url(r'^$', never_cache(TreeListView.as_view()), name='tree-list'),
 
   url(r'^article/(?P<pk>[-\w]+)/$', GenericObjectView.as_view(model=Paper, renderers={'image': rend.empty, 'mini_image_url': rend.as_image })),
   # admin/taxonomy/id list of terms

@@ -66,6 +66,7 @@ font-size:13px;
 /* (the main contents) */
 .admin-list, .admin-table {
 margin-top: 20px;
+font-size:13px;
 }
 
 .admin-list {
@@ -83,6 +84,16 @@ border-bottom: 1px solid #eee;
 }
 
 
+.admin-list input, .admin-table input {
+border: 1px solid #ccc;
+border-radius: 4px;
+padding: 5px 6px;
+}
+
+input[type=text] {
+width:20em;
+}
+
 li > label {
 font-weight: bold;
 color: #000;
@@ -96,6 +107,7 @@ width: 160px;
   display: block;
   font-size: 11px;
   color: #999;
+  padding-top:2px;
 }
 
 /* messages */
