@@ -5,8 +5,30 @@ from django.core.urlresolvers import reverse
 
 
 class TreeManager(models.Manager):
-  pass
-  
+
+    
+  def delete(self, pk):
+    # term data
+    all_term_pks = list(Term.objects.filter(tree__exact=pk).values_list('pk', flat=True))
+
+    # terms
+    Term.objects.filter(tree__exact=pk).delete()
+    print('terms xxx:')
+    print(str(all_term_pks))
+    
+    # hierarchy
+    TermParent.objects.filter(term__in=all_term_pks).delete()
+
+    # nodes
+    #!
+    
+    # tree
+    Tree.objects.get(pk__exact=pk).delete() 
+       
+        
+        
+        
+        
 #? names and slugs do not have to be unique, as we may want to 
 # structure a website, for example, and there may be several 'news'
 # terms under 'sports', 'local', 'culture' etc.
@@ -58,8 +80,17 @@ class Tree(models.Model):
     help_text="Priority for display in some templates. Lower value orders first. 0 to 32767.",
     )
 
-  #objects = TreeManager()
+
+  objects = models.Manager()
+  system = TreeManager()
+  
+  
+  #def save(self, *args, **kwargs):
+    #super(Tree, self).delete(*args, **kwargs) 
     
+ 
+        
+          
   def get_absolute_url(self):
     return reverse("tree-detail", kwargs={"slug": self.slug})
 
@@ -71,7 +102,55 @@ class Tree(models.Model):
 
 
 class TermManager(models.Manager):
-  pass
+
+  def update(self, treepk, parents, pk, title, slug, description, weight):
+    t = Term(
+      pk=pk, 
+      tree=treepk,
+      title=title,
+      slug=slug,
+      description=description,
+      weight=weight
+      )
+      
+    t.save()
+
+    # update parents
+    #! Right now, only hammering single parent in?
+    TermParent.objects.filter(term__exact=pk).delete()
+    TermParent(
+      term=pk,
+      parent=parents
+      ).save()
+        
+    return t
+
+
+  #? Not taking advantage of the caches here?
+  # do I care?
+  def delete_recursive(self, pk):
+    stash=[pk]
+    while stash:
+      tpk = stash.pop()
+      children = TermParent.objects.filter(parent__exact=tpk).values_list('term', flat=True)
+      
+      for child_pk in children:
+        parent_count = TermParent.objects.filter(term__exact=child_pk).count()
+        # i.e the child has only one parent, this term, so stash
+        # for removal
+        if ( parent_count < 2 ):
+          stash.append(child_pk)
+      
+      #! delete node connections
+          
+      # delete the term
+      Term.objects.get(pk__exact=tpk).delete()
+      
+      # delete any parents
+      TermParent.objects.filter(term__exact=tpk).delete()
+    
+    
+
   
 #! not to self?
 #! node too general
@@ -115,7 +194,8 @@ class Term(models.Model):
     help_text="Priority for display in some templates. Lower value orders first. 0 to 32767.",
     )
 
-  #objects = TermManager()
+  objects = models.Manager()
+  system = TermManager()
 
   #@property
   #def children(self):
@@ -126,7 +206,13 @@ class Term(models.Model):
   #def trees(self):
     ##? this a special manager?
     #return self.objects.filter(parent__isnull=True)
+
+
+  
+  #def save(self, *args, **kwargs):
+    #super(Term, self).delete(*args, **kwargs) 
     
+     
   def get_absolute_url(self):
     return reverse("term-detail", kwargs={"slug": self.slug})
 
