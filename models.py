@@ -13,9 +13,7 @@ class TreeManager(models.Manager):
 
     # terms
     Term.objects.filter(tree__exact=pk).delete()
-    print('terms xxx:')
-    print(str(all_term_pks))
-    
+
     # hierarchy
     TermParent.objects.filter(term__in=all_term_pks).delete()
 
@@ -102,6 +100,28 @@ class Tree(models.Model):
 
 
 class TermManager(models.Manager):
+
+
+  def create(self, treepk, parents, title, slug, description, weight):
+    t = Term( 
+      tree=treepk,
+      title=title,
+      slug=slug,
+      description=description,
+      weight=weight
+      )
+      
+    t.save()
+
+    # set parents
+    #! Right now, only hammering single parent in?
+    TermParent(
+      term=t.pk,
+      parent=parents
+      ).save()
+
+    return t
+
 
   def update(self, treepk, parents, pk, title, slug, description, weight):
     t = Term(

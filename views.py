@@ -31,77 +31,7 @@ from django.http import HttpResponseRedirect
 #? term list display indents
 # consider redirects, and messages on term pages?
 
-#class TaxonomyList(ListView):
-#  context_object_name = 'taxonomy_list'
-#  queryset = Term.objects.filter(parent__isnull=True)
-
-#def taxonomy_list(request):
-  #terms = Term.objects.filter(parent__isnull=True)
-  #return render(request, 'taxonomy/taxonomy_list.html', {'taxonomy_list' : terms})
-
-##def tree_view(request, slug):
-  ##term = Term.objects.get(slug=slug)
-  ##if(term.parent):
-    ##raise Http404("Tree does not exist")
-  ##return render(request, 'taxonomy/term_detail.html', {'term' : term})
-
-
-#from django import forms
-
-#class TreeListForm(forms.Form):
-    #title = forms.CharField(label='title', max_length=100)
-    #slug = forms.CharField(label='slug', max_length=100)
     
-    
-##from .forms import NameForm
-
-#def treelist_view(request):
-    ## if this is a POST request we need to process the form data
-    #if request.method == 'POST':
-        ## create a form instance and populate it with data from the request:
-        #form = TreeListForm(request.POST)
-        ## check whether it's valid:
-        #if form.is_valid():
-            ## process the data in form.cleaned_data as required
-            ## ...
-            ## redirect to a new URL:
-            #return HttpResponseRedirect('/thanks/')
-
-    ## if a GET (or any other method) we'll create a blank form
-    #else:
-        #form = TreeListForm()
-
-    #return render(request, 'taxonomy/tree_list.html', {'form': form})
-
-#from django.contrib.admin import helpers, widgets
-
-
-#class TreeAddForm(forms.Form):
-    #title = forms.CharField(label='title', max_length=100)
-    #slug = forms.SlugField(label='slug', max_length=100)
-    #is_single = forms.BooleanField(label='is single')
-    #is_unique = forms.BooleanField(label='is unique')
-    ##weight = forms.IntegerField(label='weight', max_value=3000, min_value=0, max_length=30)
-    #weight = forms.IntegerField(label='weight')
-
-#def treeadd_view(request):
-    ## if this is a POST request we need to process the form data
-    #if request.method == 'POST':
-        ## create a form instance and populate it with data from the request:
-        #form = TreeAddForm(request.POST)
-        ## check whether it's valid:
-        #if form.is_valid():
-            ## process the data in form.cleaned_data as required
-            ## ...
-            ## redirect to a new URL:
-            #return HttpResponseRedirect('/thanks/')
-
-    ## if a GET (or any other method) we'll create a blank form
-    #else:
-        #form = TreeAddForm()
-
-    #return render(request, 'taxonomy/tree_add.html', {'form': form})
-
 ########################################
 ## helpers
 
@@ -354,7 +284,6 @@ csrf_protect_m = method_decorator(csrf_protect)
 
 from django.contrib import messages
 from django.db import models, router, transaction
-#from django.contrib.admin.utils import quote, unquote
 
 
 #-
@@ -415,7 +344,7 @@ from .models import Term
 
 def link(text, href, attrs={}):
   '''
-  @param attrs not escaped
+  @param attrs dict of HTML attributes. these are not escaped
   '''
   #NB 'attrs' can not use kwargs because may want to use reserved words
   # for keys, such as 'id' and 'class'
@@ -466,10 +395,10 @@ class TermListView(TemplateView):
         tree = tree_terms_ordered(treepk)
         for e in tree:
           name = term_data(e.pk).title
-          #? Use unicode nbsp is probably not long-term viable
+          #? Unicode nbsp is probably not long-term viable
           # but will do for now?
           title = '\u00A0'*(e.depth*2) + name
-          # (extra context gear in case we ever enable templates/JS etc.)
+          # (extra context data in case we enable templates/JS etc.)
           rows.append({
             'view': link(title, reverse('term-preview', args=[e.pk])),
             'termpk': e.pk,
@@ -482,15 +411,6 @@ class TermListView(TemplateView):
       return context
 
 ################
-
-
-#! needs a tree? 
-#class TermForm(ModelForm):
-    ## need extra field for parent....
-    ## and handle the treepk?
-    #class Meta:
-        #model = Term
-        #fields = ['title', 'slug', 'weight']
 
 from django import forms
 
@@ -598,23 +518,16 @@ def term_add(request, treepk):
 
         ## check whether it's valid:
         if f.is_valid():
-            # remove the non-model form field
-            parentpks = f.cleaned_data.pop('parents')
 
-            # add the missing treepk
-            #f.cleaned_data['tree'] = treepk
-            #print(str(f.cleaned_data))
-            
-            
-            # Save the Term 
-            t = Term(**f.cleaned_data)            
-            t.save()
-          
-            # Set the parent
-            ##! handle multiple parents
-            tp = TermParent(term=t.pk, parent=parentpks)
-            tp.save()
-            
+            t = Term.system.create(
+                treepk=f.cleaned_data['tree'], 
+                parents=f.cleaned_data['parents'],
+                title=f.cleaned_data['title'], 
+                slug=f.cleaned_data['slug'], 
+                description=f.cleaned_data['description'], 
+                weight=f.cleaned_data['weight']
+                ) 
+                
             cache_clear()
           
             msg = tmpl_instance_message("Created new Term", f.cleaned_data['title'])
@@ -658,8 +571,8 @@ def term_edit(request, pk):
     except Term.DoesNotExist:
       raise Http404('The requested admin page does not exist.')
 
-    print('pk:')
-    print(type(pk))
+    #print('pk:')
+    #print(type(pk))
     
 
     
@@ -667,14 +580,9 @@ def term_edit(request, pk):
     ## submitted update form
     if request.method == 'POST':
         # create a form instance and validate
-        #t = Term.objects.get(pk=pk)
-        #initial = model_to_dict(t)
-
-        #f = TermForm(request.POST, initial=initial)
         f = TermForm(request.POST,
                 initial=dict(parent_choices = tree_term_select_titles(treepk, [int(pk)]))
         )
-        #try:
 
         if (not f.is_valid()):
             #print('cleaned data:')
@@ -715,9 +623,6 @@ def term_edit(request, pk):
             messages.add_message(request, messages.SUCCESS, msg)
             return HttpResponseRedirect(reverse('term-list', args=[treepk]))
             
-        #except ValueError:
-        #  raise Http404("Term data failed to update")          
-
 
     else:
         # requested update form
@@ -791,11 +696,7 @@ def _tree_delete(request, pk):
              
       if (request.method == 'POST'):
           # delete confirmed
-                    
-          # delete tree
-          #t.delete()
-          #print('pk:')
-          #print(str(pk))
+
           Tree.system.delete(int(pk))
           
           # cache is invalid
