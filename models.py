@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.urlresolvers import reverse
+from django.db import connection
 
 # Create your models here.
 
@@ -43,7 +44,7 @@ class TreeManager(models.Manager):
     TermParent.objects.filter(term__in=all_term_pks).delete()
 
     # nodes
-    #!
+    TermNode.objects.filter(term__in=all_term_pks).delete()
     
     # tree
     Tree.objects.get(pk__exact=pk).delete() 
@@ -126,6 +127,7 @@ class Tree(models.Model):
 
 class TermManager(models.Manager):
 
+  print('inst TermManager')
 
   def create(self, treepk, parents, title, slug, description, weight):
     t = Term( 
@@ -185,18 +187,19 @@ class TermManager(models.Manager):
         # for removal
         if ( parent_count < 2 ):
           stash.append(child_pk)
-      
-      #! delete node connections
-          
+                
       # delete the term
       Term.objects.get(pk__exact=tpk).delete()
       
       # delete any parents
       TermParent.objects.filter(term__exact=tpk).delete()
-    
-    
+      
+      # delete any parents
+      TermNode.objects.filter(term__exact=tpk).delete()
 
-  
+
+
+
 #! not to self?
 #! node too general
 class Term(models.Model):
@@ -242,21 +245,6 @@ class Term(models.Model):
   objects = models.Manager()
   system = TermManager()
 
-  #@property
-  #def children(self):
-    ##? this a special manager?
-    #return self.term_set.all()
-
-  #@property
-  #def trees(self):
-    ##? this a special manager?
-    #return self.objects.filter(parent__isnull=True)
-
-
-  
-  #def save(self, *args, **kwargs):
-    #super(Term, self).delete(*args, **kwargs) 
-    
      
   def get_absolute_url(self):
     return reverse("term-detail", kwargs={"slug": self.slug})
@@ -266,6 +254,28 @@ class Term(models.Model):
     self.title, 
     )
 
+
+class TermParentManager(models.Manager):
+
+    _SQLTermParentage = "SELECT h.parent, t.id FROM taxonomy_termparent h, taxonomy_term t WHERE t.tree = %s and t.id = h.term ORDER BY t.weight, t.title"
+
+    #? not sure if this functional approach is best for Python,
+    # but code is where it should be (could return a list...)
+    def foreach_ordered(self, tree_pk, func):
+      '''
+      Parent/term pks for a given tree.
+      The term pks are ordered by weight and title, in that order.
+      NB: raw SQL query
+      
+      @return a raw fetchall---iterable list of (parent_pk, term_pk)
+      '''
+      with connection.cursor() as c:
+          c.execute(self._SQLTermParentage, [tree_pk])
+          for e in c.fetchall():
+            func(e)
+
+      
+      
 # Separate the heirarchy associations
 # In a multi taxonomy, Terms may link to several parents.
 # Sadly, this means means niether column is unique. Thus, neither can be 
@@ -277,16 +287,8 @@ class Term(models.Model):
 # declared as ForeignKey.
 #! unwanted id field here
 class TermParent(models.Model):
-  #term = models.ForeignKey(
-    #Term, 
-    #on_delete=models.CASCADE,
-    #db_index=True,
-    #related_name='+',
-    ##related_name="children",
-    ##related_query_name="children",
-    ##editable=False,
-    #help_text="Term to connect to another Term",
-    #)
+  print('inst TermParent')
+
     
   term = models.IntegerField(
     db_index=True,
@@ -295,23 +297,11 @@ class TermParent(models.Model):
     )
     
   # can be null, if at root of taxonomy
-  #parent = models.ForeignKey(
-    #Term, 
-    #on_delete=models.CASCADE,  
-    #blank=True, 
-    #null=True,
-    #db_index=True,
-    #related_name='+',
-    ##related_name="children",
-    ##related_query_name="children",
-    ##editable=False,
-    #help_text="Term parent for another term, or null for root (connection to self forbidden)",
-    #)
 
   # Sadly, the autoincrement is dependent on underlying DB 
   # implementation. It would be nice to guarentee zero, but the only
   # way to do this is by an even more awkward method of migration.
-  # So null it is, for unparented Terms.
+  # So null it is, for unparented Terms. -1 sentinel is the compromise.
   parent = models.IntegerField(
     db_index=True,
     #null=True,
@@ -319,21 +309,13 @@ class TermParent(models.Model):
     help_text="Term parent for another term, or null for root (connection to self forbidden)",
     )
     
-  # Now that would beggar belief, an auto-increment tat allows -1...
+  # Now that would beggar belief, an auto-increment that allows -1...
   NO_PARENT = -1
 
-  def save(self, *args, **kwargs):
-    # Raise on circular reference
-    #! can be prevented in admin? Limited list?
-    #parent_term = self.parent
-    # climb the ancestory to check...
-    #while parent_term is not None:
-    #    if parent_term == self.term:
-    #        raise RuntimeError("Disallowed: Parent joined to self/circular reference.")
-    #    parent_term = self.objects.get(term__exact=parent_term.pk).parent
 
-    super(TermParent, self).save(*args, **kwargs)
-
+  objects = models.Manager()
+  system = TermParentManager()
+  
   def __str__(self):
     return "{0}-{1}".format(
     self.term, 
