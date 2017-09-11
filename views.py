@@ -23,6 +23,7 @@ from .models import Term, Tree, TermParent
 
 #TODO:
 # Some url solution
+# how big is that pk field?
 # check actions
 # check nodes
 # check weights
@@ -36,28 +37,8 @@ from .models import Term, Tree, TermParent
 # generictemplate module detection
 # Tree form not ModelForm
 # set weight to zero button
-########################################
-## helpers
-
-  
-def tree_terms_for_element(tree_pk, epk):
-  '''
-  Get terms associated with an element, within a tree.
-  Ordered by weight.
-  
-  @return queryset of terms
-  '''
-  term_ids = TermNode.objects.filter(node__exact=epk).values_list('term', flat=True)
-  return Term.objects.order_by('weight').filter(tree__exact=tree_pk, pk__exact=term_ids)
-
-#-
-def tree_term_titles(tree_pk):
-  '''
-  Get terms in a tree
-  @return list of term data tuples (pk, title)
-  '''
-  return Term.objects.filter(tree__exact=tree_pk).values_list('pk', 'title', 'description')
-
+# cache term data using djano, or ok?
+# maybe not parent to root when is root?
 
 #######################################################
 ## data caches
@@ -67,6 +48,10 @@ def tree_term_titles(tree_pk):
 # https://stackoverflow.com/questions/1977362/how-to-create-module-wide-variables-in-python#1978076
 this = sys.modules[__name__]
 
+
+# carrying a full set of terms is covered by Django query caching
+# so this may be deprecated. But this can be part-cleared and allows
+# record retrieval from cache.
 this._tree_data = {}
 TreeData = namedtuple('TreeData', ['title', 'description', 'is_single', 'is_unique'])
 
@@ -86,8 +71,6 @@ def tree_data(tree_pk):
 
 this._term_data = {}
 TermData = namedtuple('TermData', ['tree', 'title', 'description'])
-
-
 
 def term_data(term_pk):
   '''
@@ -109,7 +92,7 @@ def term_data(term_pk):
 def term_treepk(term_pk):
   '''
   treepk for a given term pk.
-  Convenience method, but used a lot internally.
+  Convenience method, but used internally.
   
   @param treepk int or int-coercable string 
   @return the pk. Guarenteed int.
@@ -167,7 +150,7 @@ def _assert_cache(tree_pk):
 def terms_flat_tree(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=-1):
   '''
   Return data from Terms as a flat tree.
-  Each item is an TermFTData (Term 'pk' extended with 'depth' and
+  Each item is an TermFTData (pk, title, description, extended with 'depth' and
   'parents' attributes).
   Note that depth starts at 0.
   
@@ -183,7 +166,7 @@ def terms_flat_tree(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=-1):
   
   _assert_cache(treepk)
 
-  print('flat t access:')
+  #print('flat t access:')
   #print(str(_children))
   #print(str(_parents))
   
@@ -213,9 +196,7 @@ def terms_flat_tree(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=-1):
       td = term_data(pk)
       tree.append(TermFTData(pk, td.title, td.description, depth, parents[pk]))
       child_pks = children.get(pk)
-      #print('max:')
-      #print(str(_max_depth))
-      #print(str(depth))
+      
       if (depth < _max_depth and child_pks):
           # append current iter, to go back to after children
           stack.append(it)
@@ -231,44 +212,107 @@ def terms_flat_tree(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=-1):
 ## Cache clear
 
 def cache_clear_term(treepk):
-  '''
-  For all term action modifying state.
-  Kills the given tree. Empties term data.
-  '''
-  # All actions modify the tree, as terms are anchored to them.
-  # Term deletion produces a cascading delete, so needs a general
-  # reset. 
-  #? If performance intrudes, creation and update could zero
-  # the target data only?
-  #assert isinstance(tree_pk, int), "Not an integer!"
-  this._term_data = {}
-  this._children = {}
-  this._parents = {}
-  this._tree[int(treepk)] = {}
+    '''
+    For all term action modifying state.
+    Kills the given tree. Empties term data.
+  
+    @param tree_pk must exist or simple exception
+    '''
+    # All actions modify the tree, as terms are anchored to them.
+    # Term deletion produces a cascading delete, so needs a general
+    # reset. 
+    this._term_data = {}
+    this._children = {}
+    this._parents = {}
+    this._tree[int(treepk)] = {}
+
+
+def cache_clear_term_create_update(tree_pk, term_pk=None):
+    '''
+    For all term action modifying state.
+    Kills the given tree. Deletes term data.
+    
+    @param tree_pk must exist or simple exception
+    @param term_pk must exist or simple exception
+    '''
+    # All actions modify the tree, as terms are anchored to them.
+    # Term deletion produces a cascading delete, so needs a general
+    # reset.     
+    # if added, or updated after startup, no cache
+    if ((not term_pk is None) and (term_pk in this._term_data)):
+        del(this._term_data[int(term_pk)])
+    this._children = {}
+    this._parents = {}
+    this._tree[int(tree_pk)] = {}
 
 
   
 def cache_clear_tree_create_update():
-  '''
-  For create or update on a Tree
-  Clears tree data. 
-  '''
-  this._tree_data = {}
+    '''
+    For create or update on a Tree
+    Clears tree data. 
+    '''
+    this._tree_data = {}
 
 
 def cache_clear():
-  '''
-  For tree delete.
-  ...or other general purpose.
-  '''
-  this._tree_data = {}
-  this._term_data = {}
-  this._children = {}
-  this._parents = {}
-  this._tree = {}
+    '''
+    For tree delete.
+    ...or other general purpose.
+    '''
+    this._tree_data = {}
+    this._term_data = {}
+    this._children = {}
+    this._parents = {}
+    this._tree = {}
 
 
-    
+
+########################################
+## helpers
+
+# data for:
+# tree (cache)
+# term (cache)
+# term by name (db)
+
+# all ordered by title/weeight
+# list of trees
+# list of terms for tree
+
+# tree for term
+# ancestors of term  (taxonomy_get_parents_all -db)
+# descendants of term (drupal -db)
+# parents (taxonomy_get_parents db)
+# children (taxonomy_get_children db)
+# node count
+#? descendant node count (taxonomy_term_count_nodes)
+
+# list of elements for term (taxonomy_select_nodes cache)
+# list of terms for element
+
+# add elements
+# remove elements  
+
+def element_terms(tree_pk, epk):
+  '''
+  Get terms associated with an element, within a tree.
+  Ordered by weight.
+  
+  @return queryset of terms
+  '''
+  term_ids = TermNode.objects.filter(node__exact=epk).values_list('term', flat=True)
+  return Term.objects.order_by('weight').filter(tree__exact=tree_pk, pk__exact=term_ids)
+
+#-
+def tree_term_titles(tree_pk):
+  '''
+  Get terms in a tree
+  @return list of term data tuples (pk, title)
+  '''
+  return Term.objects.filter(tree__exact=tree_pk).values_list('pk', 'title', 'description')
+
+
 ##############################################
 ## cache accessors
 
@@ -282,6 +326,7 @@ def cache_clear():
     #_assert_cache(tree_pk)
     #return [_term_data(pk) for pk in  this._parents[treepk]
 
+#-
 def term_parent_pks(tree_pk, pk):
     treepk = int(tree_pk)
     _assert_cache(treepk)
@@ -293,11 +338,20 @@ def term_parent_pks(tree_pk, pk):
 
 
 def term_node_count(termpk):
+  '''Count of nodes on a single term'''
   return TermNode.objects.filter(term__exact=termpk).count()
 
 
 
-def tree_select_titles(tree_pk, exclude=[]):
+def tree_select_titles(tree_pk):
+    '''
+    All titles from a tree.
+    The titles have a representation of structure by indenting with '-'.    
+    Intended for single parent select boxes.
+
+    @param tree_pk int or coercable string
+    @return [(pk, marked title)...]
+    '''
     tree = terms_flat_tree(tree_pk)
 
     # assert a root item
@@ -310,14 +364,14 @@ def tree_select_titles(tree_pk, exclude=[]):
 
 def tree_term_select_titles(term_pk):
     '''
-    List of titles in a tree.
+    Ancestor titles from a tree.
     The titles have a representation of structure by indenting with '-'.
-     
-    @param tree_pk int or coercable string
-    @param exclude list of pks to remove from the list. Numeric type (not string)
+    Intended for single parent select boxes.
+
+    @param term_pk int or coercable string
     @return list [(pk, title)...]
     '''
-    # needed for the test below
+    # coercion needed for the test below
     pk = int(term_pk)
     tree_pk = term_treepk(pk)
     
@@ -326,33 +380,46 @@ def tree_term_select_titles(term_pk):
     
     tree = terms_flat_tree(tree_pk)
   
+    # too simple. Needs to continue to a root
+    gather = True 
+    depth_note = -99
     for t in tree:
+      
+        # switch gather on if root term
+        depth = t.depth
+
+        if (depth <= depth_note):
+          gather = True
+          depth_note = -99
         if (t.pk == pk):
-            break
-        else:
+          gather = False
+          depth_note = depth
+
+        if (gather):
             b.append((t.pk, '-' * t.depth + html.escape(t.title)))
     return b
 
 
 
-#! both of the below could use a term->tree cache...
 def term_descendant_pks(pk=TermParent.NO_PARENT):
     '''
     Find all descendant pks of a term
     @return list of child ids
     '''
     tree_pk = term_treepk(pk)
-    
     t = terms_flat_tree(tree_pk, pk)
     return [e.pk for e in t]
 
     
-    
+
 def ancestor_pks(pk=TermParent.NO_PARENT):
     '''
     Find all parent ancestors
     @return list of child ids
     '''
+    
+    # Works from the raw tree data. Much easier than finding when and
+    # if tree elements are ancestors.
     tpk = int(pk)
     treepk = term_treepk(tpk)
     _assert_cache(treepk)
@@ -383,7 +450,9 @@ def link(text, href, attrs={}):
     '''
     Build HTML for a anchor/link.
     
-    @param attrs dict of HTML attributes. These are not escaped
+    @param title escaped
+    @param href escaped
+    @param attrs dict of HTML attributes. Not escaped
     '''
     #NB 'attrs' can not use kwargs because may want to use reserved words
     # for keys, such as 'id' and 'class'
@@ -397,13 +466,12 @@ def link(text, href, attrs={}):
       ))
 
 
-#def tmpl_error_redirect_message(model):
-
 # ...when a redirect is troublesome
 def tmpl_404_redirect_message(model):
   return 'No {0}s found matching this query.'.format(model._meta.verbose_name)
 
 def tmpl_instance_message(msg, title):
+  '''Template for a message or title about an model instance'''
   return mark_safe('{0} <i>{1}</i>.'.format(msg, html.escape(title)))
   
 
@@ -558,7 +626,6 @@ class TermForm(forms.Form):
     )
     #, widget=forms.Select(choices=current_termdata))
 
-  #???slug field?
     #! how big is the field?
     tree = forms.IntegerField(min_value=0, max_value=32767, widget=forms.HiddenInput())
     
@@ -663,7 +730,7 @@ def term_add(request, treepk):
                 weight=f.cleaned_data['weight']
                 ) 
                 
-            cache_clear_term(treepk)
+            cache_clear_term_create_update(treepk)
           
             msg = tmpl_instance_message("Created new Term", f.cleaned_data['title'])
             messages.add_message(request, messages.SUCCESS, msg)
@@ -728,15 +795,10 @@ def term_edit(request, pk):
         else:
             # valid
 
-            # update parents.
-            #! validation of parenting
-            #? maybe do on model, or not? 
-
-            #? parent between trees Not Allowed?
+            #! validate
+            # - parent not between trees
+            # - parent not child of itself
             #if (f.fields['treepk'].has_changed()):
-            
-            # if this is single parent, the only object it cna not be 
-            # parented by is itself.
             #! handle mutiple            
             treepk = f.cleaned_data['tree']
             title = f.cleaned_data['title']
@@ -750,20 +812,15 @@ def term_edit(request, pk):
                 weight=f.cleaned_data['weight']
                 ) 
             
+            cache_clear_term_create_update(treepk, t.pk)
 
-            # cache now invalid
-            cache_clear_term(treepk)
-            
-            #print('after clear')
-            #print(str(this._tree))
             msg = tmpl_instance_message("Updated Term", title)
             messages.add_message(request, messages.SUCCESS, msg)
             return HttpResponseRedirect(reverse('term-list', args=[treepk]))
             
-
     else:
         # requested update form
-        parents = term_parent_pks(treepk, pk)
+        #parents = term_parent_pks(treepk, pk)
 
         #if(single_parent):
           # easy, can't be a parent to itself, but all else is ok
@@ -783,7 +840,7 @@ def term_edit(request, pk):
           
         initial = model_to_dict(term)
         # add in the non-model treepk field inits
-        initial['parents'] = parents[0]
+        initial['parents'] = tree_term_select_titles(pk)
         initial['parent_choices'] = tree_term_select_titles(pk)
 
         f = TermForm(initial=initial)
@@ -800,6 +857,8 @@ def term_edit(request, pk):
     }
     
     return render(request, 'taxonomy/generic_form.html', context)
+
+
 
 #########################
 def _tree_delete(request, pk):
