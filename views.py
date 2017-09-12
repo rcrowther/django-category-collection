@@ -16,7 +16,7 @@ from functools import partial
 import sys
 from collections import namedtuple
 
-from .models import Term, Tree, TermParent
+from .models import Term, Tree, TermParent, TermNode
 
 
 
@@ -132,22 +132,24 @@ def _cache_populate(tree_pk, e):
 
 def _assert_cache(tree_pk):
       assert isinstance(tree_pk, int), "Not an integer!"
-    
       cached = this._children.get(tree_pk)
-      if (not cached):  
-        print('cache rebuild...')
+      if (not cached):
+        
         # ensure we start with -1 kv present, we may look for that
         # as default
         this._children[tree_pk] = {TermParent.NO_PARENT:[]}
         this._parents[tree_pk] = {}
+        
         #? Python claims to be functional---would a list be faster?
         TermParent.system.foreach_ordered(tree_pk, partial(_cache_populate, tree_pk ))
-      else:
-        print('using cache...')
+
 
 
 # why the parents? because we can, or is there some use?
-def terms_flat_tree(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=-1):
+#? depth start at 0
+#! better max depth
+FULL_DEPTH = -1
+def terms_flat_tree(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
   '''
   Return data from Terms as a flat tree.
   Each item is an TermFTData (pk, title, description, extended with 'depth' and
@@ -272,38 +274,192 @@ def cache_clear():
 ## helpers
 
 # data for:
-# tree (cache)
 # term (cache)
 # term by name (db)
-
-# all ordered by title/weeight
-# list of trees
-# list of terms for tree
-
 # tree for term
-# ancestors of term  (taxonomy_get_parents_all -db)
-# descendants of term (drupal -db)
+
+# ordered by title/weight
+# tree (cache)
+# list of terms for tree
+# list of trees
+
 # parents (taxonomy_get_parents db)
 # children (taxonomy_get_children db)
+# ancestors of term  (taxonomy_get_parents_all -db)
+# descendants of term (drupal -db)
+
+# list of elements for term (taxonomy_select_nodes cache)
+#? list of elements for terms
+#  list of elements for term descendants
+# list of terms for element (taxonomy_node_get_terms_by_vocabulary)
+
 # node count
 #? descendant node count (taxonomy_term_count_nodes)
 
-# list of elements for term (taxonomy_select_nodes cache)
-# list of terms for element
+
 
 # add elements
 # remove elements  
 
-def element_terms(tree_pk, epk):
-  '''
-  Get terms associated with an element, within a tree.
-  Ordered by weight.
-  
-  @return queryset of terms
-  '''
-  term_ids = TermNode.objects.filter(node__exact=epk).values_list('term', flat=True)
-  return Term.objects.order_by('weight').filter(tree__exact=tree_pk, pk__exact=term_ids)
+def term_from_title(title):
+    '''
+    @return list of matching terms. Ordered by weight and then title.
+    '''
+    return Term.objects.order_by('weight', 'title').filter(title__exact=title)
 
+def term_tree(term):
+    ''''''
+    return tree_data(term.tree)
+
+#?
+def tree_terms(tree_pk):
+    '''
+    All the terms in a tree.
+    @return Ordered by weight and then title.
+    '''
+    _assert_cache(tree_pk)
+    
+    #? can't use cache, need ordered
+    return this._term_data[tree_pk]
+  
+def trees():
+    '''
+    @return list of tree objects. Ordered by weight and then title.
+    '''
+    
+    # cache is dosordered dict, so SQL
+    return Tree.objects.order_by('weight', 'title').all()
+
+def term_parents(term_pk):
+    '''
+    @return list of term tuples. Ordered by weight and then title.
+    '''
+    return Term.system.parents_ordered(term_pk)
+
+def term_ancestors(term_pk):
+  #? do through cache?
+    b = []
+    parents = term_parents(term_pk)
+    while (parents):
+        parent = parents.pop()
+        for p in term_parents(parent.pk):
+            parents.append(p)
+        b.append(parent)
+    return b
+  
+  #?
+def ancestor_pks(pk=TermParent.NO_PARENT):
+    '''
+    Find all parent ancestors
+    @return list of child ids
+    '''
+    
+    # Works from the raw tree data. Much easier than finding when and
+    # if tree elements are ancestors.
+    tpk = int(pk)
+    treepk = term_treepk(tpk)
+    _assert_cache(treepk)
+    parents = this._parents[treepk]
+    
+    b = []
+    # block on initial sentinel
+    if (pk > TermParent.NO_PARENT):
+        stack = parents[tpk]
+        while (stack):
+            tpk = stack.pop()
+            # Can drop/stop ascending if hit the no-parent sentinel
+            if (tpk > TermParent.NO_PARENT):
+                b.append(tpk)
+                tpks = parents[tpk]
+                for e in tpks:
+                    stack.append(e)
+      
+    return b
+
+#cache?
+def term_children(term_pk):
+    '''
+    @return list of term objects. Ordered by weight and then title.
+    '''
+    return Term.system.children_ordered(term_pk)
+
+def term_descendants(term_pk):
+  # do through cache?
+    b = []
+    children = term_children(term_pk)
+    while (children):
+        child = children.pop()
+        for c in term_children(child.pk):
+            children.append(c)
+        b.append(child)
+    return b
+
+
+def term_descendant_pks(pk):
+    '''
+    Find all descendant pks of a term
+    @return list of child ids
+    '''
+    tree_pk = term_treepk(pk)
+    t = terms_flat_tree(tree_pk, pk)
+    return [e.pk for e in t]
+
+def term_element_pks(term_pk):
+    '''
+    @return list of element pks
+    '''
+    # static cache taxonomy_node_get_terms
+    return TermNode.objects.filter(term__exact=term_pk).values_list('node', flat=True)  
+
+#? def terms_elements(tree_pk, element_pk):
+
+def terms_descendant_element_pks(tree_pk, max_depth=FULL_DEPTH, distinct=False, *term_pks):
+    '''
+    @return a list of element pks
+    '''
+    #? duplicates in multi trees
+    # Better to get the list, rather than work term by term, only one
+    # hit on each DB table.
+    xt = []
+    for pk in term_pks:
+      tree = terms_flat_tree(tree_pk, pk, max_depth=max_depth)
+      xt.append([t for t in tree])
+    print(str(xt))
+    return TermNode.objects.filter(term__in=xt).values('node', flat=True)
+
+ 
+def element_terms(tree_pk, element_pk):
+    '''
+    Get terms associated with an element, within a tree.
+    
+    
+    @return queryset of terms. Ordered by weight and then title.
+    '''
+    return TermNode.system.element_terms(tree_pk, element_pk)
+
+
+    
+    
+this._count = {}
+#! expiry?
+def term_element_count(term_pk):
+    '''
+    Count of nodes on a single term
+    '''
+    termpk = int(term_pk)
+    r = this._count.get[termpk]
+    if (not r):
+      r = TermNode.objects.filter(term__exact=termpk).count()
+      this._count[termpk] = r
+    return r
+
+def term_descendants_element_count(term_pk):
+    count = term_element_count(term_pk)
+    for t in term_descendants(term_pk):
+      count = count + term_element_count(t)
+    return count
+  
+######################
 #-
 def tree_term_titles(tree_pk):
   '''
@@ -311,6 +467,7 @@ def tree_term_titles(tree_pk):
   @return list of term data tuples (pk, title)
   '''
   return Term.objects.filter(tree__exact=tree_pk).values_list('pk', 'title', 'description')
+
 
 
 ##############################################
@@ -336,10 +493,6 @@ def term_parent_pks(tree_pk, pk):
 ##############################################
 ## accessors
 
-
-def term_node_count(termpk):
-  '''Count of nodes on a single term'''
-  return TermNode.objects.filter(term__exact=termpk).count()
 
 
 
@@ -399,46 +552,6 @@ def tree_term_select_titles(term_pk):
             b.append((t.pk, '-' * t.depth + html.escape(t.title)))
     return b
 
-
-
-def term_descendant_pks(pk=TermParent.NO_PARENT):
-    '''
-    Find all descendant pks of a term
-    @return list of child ids
-    '''
-    tree_pk = term_treepk(pk)
-    t = terms_flat_tree(tree_pk, pk)
-    return [e.pk for e in t]
-
-    
-
-def ancestor_pks(pk=TermParent.NO_PARENT):
-    '''
-    Find all parent ancestors
-    @return list of child ids
-    '''
-    
-    # Works from the raw tree data. Much easier than finding when and
-    # if tree elements are ancestors.
-    tpk = int(pk)
-    treepk = term_treepk(tpk)
-    _assert_cache(treepk)
-    parents = this._parents[treepk]
-    
-    b = []
-    # block on initial sentinel
-    if (pk > TermParent.NO_PARENT):
-        stack = parents[tpk]
-        while (stack):
-            tpk = stack.pop()
-            # Can drop/stop ascending if hit the no-parent sentinel
-            if (tpk > TermParent.NO_PARENT):
-                b.append(tpk)
-                tpks = parents[tpk]
-                for e in tpks:
-                    stack.append(e)
-      
-    return b
 
 
       
@@ -879,7 +992,6 @@ def _tree_delete(request, pk):
              
       if (request.method == 'POST'):
           # delete confirmed
-
           Tree.system.delete(int(pk))
           
           # cache is invalid

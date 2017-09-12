@@ -7,7 +7,32 @@ from django.db import connection
 
 class TreeManager(models.Manager):
 
-  # unused?
+  #? unused due to ModelForm
+  def create(self, title, slug, description, is_single, is_unique, weight, parents):
+      '''
+      @param parents an array of pk
+      '''
+      Tree(
+          tree=treepk,
+          title=title,
+          slug=slug,
+          description=description,
+          is_single=is_single,
+          is_unique=is_unique,
+          weight=weight
+          ).save()
+
+      # set parents
+      #! Right now, only hammering single parent in?
+      for p in parents:
+        TermParent(
+          term=pk,
+          parent=p
+          ).save()
+      return t  
+    
+    
+  #? unused due to ModelForm
   def update(self,  pk, title, slug, description, is_single, is_unique, weight, parents=None):
     t = Tree( 
       pk=pk,
@@ -197,9 +222,46 @@ class TermManager(models.Manager):
       # delete any parents
       TermNode.objects.filter(term__exact=tpk).delete()
 
+  _SQLParents = "SELECT t.* FROM taxonomy_term t, taxonomy_termparent h WHERE h.term = %s and t.id = h.parent ORDER BY t.weight, t.title"
+
+  def parents_ordered(self, pk):
+      #'SELECT t.tid, t.* FROM {term_data} t INNER JOIN {term_hierarchy} h ON h.parent = t.tid WHERE h.tid = %d ORDER BY weight, name', 't', 'tid'), $tid);
+      '''
+      Parent/term pks for a given tree.
+      The term pks are ordered by weight and title, in that order.
+      NB: raw SQL query
+      
+      @return [(<all term info>)...]
+      '''
+      c = connection.cursor()
+      try:
+          c.execute(self._SQLParents, [pk])
+          r = [e for e in c.fetchall()]
+      finally:
+          c.close()
+      return r
+
+  _SQLChildren = "SELECT t.* FROM taxonomy_term t, taxonomy_termparent h WHERE h.parent = %s and t.id = h.term ORDER BY t.weight, t.title"
+
+  def children_ordered(self, pk):
+      '''
+      Parent/term pks for a given tree.
+      The term pks are ordered by weight and title, in that order.
+      NB: raw SQL query
+      
+      @return [(<all term info>)...]
+      '''
+      c = connection.cursor()
+      try:
+          c.execute(self._SQLChildren, [pk])
+          r = [e for e in c.fetchall()]
+      finally:
+          c.close()
+      return r
 
 
 
+      
 #! not to self?
 #! node too general
 class Term(models.Model):
@@ -244,7 +306,6 @@ class Term(models.Model):
 
   objects = models.Manager()
   system = TermManager()
-
      
   def get_absolute_url(self):
     return reverse("term-detail", kwargs={"slug": self.slug})
@@ -253,6 +314,7 @@ class Term(models.Model):
     return "{0}".format(
     self.title, 
     )
+
 
 
 class TermParentManager(models.Manager):
@@ -287,8 +349,6 @@ class TermParentManager(models.Manager):
 # declared as ForeignKey.
 #! unwanted id field here
 class TermParent(models.Model):
-  print('inst TermParent')
-
     
   term = models.IntegerField(
     db_index=True,
@@ -311,8 +371,6 @@ class TermParent(models.Model):
     
   # Now that would beggar belief, an auto-increment that allows -1...
   NO_PARENT = -1
-
-
   objects = models.Manager()
   system = TermParentManager()
   
@@ -322,8 +380,30 @@ class TermParent(models.Model):
     self.parent, 
     )
     
+    
+    
+class TermNodeManager(models.Manager):
+  _SQLElementTerms = "SELECT t.* FROM taxonomy_term t, taxonomy_termnode e WHERE t.id = e.term and t.tree = %s e.node = %s  ORDER BY t.weight, t.title"
+    #$result = db_query(db_rewrite_sql('SELECT t.*,v.weight AS v_weight_unused FROM {term_node} r INNER JOIN {term_data} t ON r.tid = t.tid INNER JOIN {vocabulary} v ON t.vid = v.vid WHERE r.vid = %d ORDER BY v.weight, t.weight, t.name', 't', 'tid'), $node->vid);
 
-
+  def element_terms(self, tree_pk, pk): 
+      '''
+      Terms for a given element.
+      The terms are ordered by weight and title, in that order.
+      The return is full term info, not ids
+      
+      @return [(<all term info>)...] Terms are full term info.
+      '''
+      c = connection.cursor()
+      r = []
+      try:
+          c.execute(self._SQLElementTerms, [tree_pk, pk])
+          r = [e for e in c.fetchall()]
+      finally:
+          c.close()
+      return r
+      
+      
 # We want to 
 # - de-typify the object connection
 # : this is a database schema, so the connection must be of some type,
@@ -332,6 +412,9 @@ class TermParent(models.Model):
 # : may be enforced in some circumstances
 # auto field handling should work ok here.
 #! unwanted id field here
+#! rename TermElement
+#! node is unique per term? No, per tree.
+#! must disallow duplicate pks on terms
 class TermNode(models.Model):
   term = models.ForeignKey(
     Term, 
@@ -349,6 +432,9 @@ class TermNode(models.Model):
     help_text="An element associated with a Term.",
     )
 
+  objects = models.Manager()
+  system = TermNodeManager()
+  
   def __str__(self):
     return "{0}-{1}".format(
     self.term.title, 
