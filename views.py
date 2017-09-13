@@ -81,7 +81,7 @@ this._parent_cache = {}
 this._term_data_cache = {}
 
 # storage tuples
-TermTData = namedtuple('TermFTData', ['title', 'slug', 'description'])
+TermTData = namedtuple('TermFTData', ['pk', 'title', 'slug', 'description'])
 TermFTData = namedtuple('TermFTData', ['pk', 'title', 'slug', 'description', 'depth'])
 
 
@@ -126,7 +126,7 @@ def _assert_cache(tree_pk):
           # populate term data
           xt = Term.objects.filter(tree__exact=tree_pk)
           this._term_data_cache[tree_pk] = {
-              t.pk : TermTData(t.title, t.slug, t.description) 
+              t.pk : TermTData(t.pk, t.title, t.slug, t.description) 
               for t in xt
               }
           return True
@@ -382,11 +382,14 @@ def term_ancestor_data(tree_pk, term_pk):
     @return list of paths of TermTData(pk, title, slug, description). None
     if paramerters fail to verify. Empty list if tree/term_pk has no parents. 
     '''
-    ??? how get data on here, and what data?
+    #??? how get data on here, and what data?
     if (not _assert_cache(int(tree_pk))):
       return None
     else:
+      # clean accessors
       parentc = this._parent_cache[int(tree_pk)]
+      term_data = this._term_data_cache[int(tree_pk)]
+      
       parents = parentc.get(int(term_pk))
       if (parents == None):
         return None
@@ -397,16 +400,18 @@ def term_ancestor_data(tree_pk, term_pk):
         #print('trail_stash') 
         #print(str(trail_stash)) 
         while(trail_stash):
-            trail = trail_stash.pop()
-                          ##from taxonomy.views import *
-                          #term_ancestor_data()     
+            trail = trail_stash.pop()    
             # make current trail
             while(True):
                 head = trail[-1]
                 #print(str(head))
                 if (head == TermParent.NO_PARENT):
                     #completed a trail
-                    b.append(trail)
+                    # pop the delimiting -1 from the trail end.
+                    trail.pop()
+                    # build data for the pks
+                    dt = [term_data[pk] for pk in trail]
+                    b.append(dt)
                     break
                 parents = parentc[head]
                 #parents 1+ put on a copy of the list, then store
