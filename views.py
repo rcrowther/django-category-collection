@@ -171,7 +171,7 @@ def terms_flat_tree(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
     children = this._child_cache[treepk]
     parents = this._parent_cache[treepk]
     term_data = this._term_data_cache[treepk]
-    _max_depth =  len(children) if (max_depth == None) else max_depth
+    _max_depth = len(children) if (max_depth == None) else max_depth
 
     # Stack of levels to process. Each level is an iter.
     # preload with the first set of children
@@ -191,7 +191,7 @@ def terms_flat_tree(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
             td = term_data[pk]
             tree.append(TermFTData(pk, td.title, td.slug, td.description, depth))
             child_pks = children.get(pk)
-            if (child_pks and depth < _max_depth):
+            if (child_pks and ((depth + 1) < _max_depth)):
                 # append current iter, will return after processing children
                 stack.append(it)
                 # append new depth of iter
@@ -287,14 +287,14 @@ def term(term_pk):
     except Term.DoesNotExist:
         return None
 
-def term_data(treepk, term_pk):
+def term_data(tree_pk, term_pk):
     '''
     Term data.
     From cache.
     
     @return [(pk, name, description)], or None.
     '''
-    if (_assert_cache(tree_pk) == None):
+    if (_assert_cache(int(tree_pk)) == None):
         return None
     else:
         return this._term_data_cache[int(tree_pk)].get(int(term_pk))
@@ -361,7 +361,6 @@ def term_child_data(tree_pk, term_pk):
     else:
         return this._child_cache[int(tree_pk)].get(int(term_pk)) 
 
-
 # ascendors are currently a problem. They have a goof use as breadcrumbs
 # but locating terms in cached trees is a problem. The term amy not appear
 # in branches of a multiple hierarchy. For now, SQL. 
@@ -376,13 +375,10 @@ def term_ancestor_data(tree_pk, term_pk):
     If the paths are used for display purposes, you may wish to reverse() them. 
     
     @param tree_pk int or coercable string
-    @param parent_pk start from the children of this term. int or coercable string.
-    @param max_depth prune the tree beyond this value. Corresponds with
-     depth (value 0 will print one row, if data is available, at depth 0) 
+    @param child_pk start from the parents of this term. int or coercable string.
     @return list of paths of TermTData(pk, title, slug, description). None
-    if paramerters fail to verify. Empty list if tree/term_pk has no parents. 
+    if parameters fail to verify. Empty list if tree/term_pk has no parents. 
     '''
-    #??? how get data on here, and what data?
     if (not _assert_cache(int(tree_pk))):
       return None
     else:
@@ -444,8 +440,11 @@ def term_descendant_pks(pk):
     '''
     tree_pk = term(pk).tree
     t = terms_flat_tree(tree_pk, pk)
-    return [e.pk for e in t]
-
+    if (t == None):
+      return None
+    else:
+      return [e.pk for e in t]
+      
 def term_element_pks(term_pk):
     '''
     @return list of element pks
@@ -465,9 +464,10 @@ def terms_descendant_element_pks(tree_pk, max_depth=FULL_DEPTH, distinct=False, 
     xt = []
     for pk in term_pks:
       tree = terms_flat_tree(tree_pk, pk, max_depth=max_depth)
-      xt.append([t for t in tree])
-    print(str(xt))
-    return TermNode.objects.filter(term__in=xt).values('node', flat=True)
+      if (tree != None):
+        xt.append([t for t in tree])
+    #print(str(xt))
+    return TermNode.objects.filter(term__in=xt).values_list('node', flat=True)
 
  
 def element_terms(tree_pk, element_pk):
@@ -694,7 +694,7 @@ class TermListView(TemplateView):
   template_name = "taxonomy/term_list.html"
   
   def get_context_data(self, **kwargs):
-      tree1 = tree(int(kwargs['treepk']))
+      tree1 = tree(int(kwargs['tree_pk']))
       if (tree1 == None):
         #? cannt redirect in this view?
         raise Http404(tmpl_404_redirect_message(Tree))   
@@ -726,17 +726,16 @@ class TermListView(TemplateView):
         # single parentage can show the structure of the tree
         ftree = terms_flat_tree(tree1.pk)
         
-        for t in ftree: 
+        for td in ftree: 
           #? Unicode nbsp is probably not long-term viable
           # but will do for now
-          title = '\u00A0' * (t.depth*2)  + t.title          
-          pk = t.pk
+          title = '\u00A0' * (td.depth*2)  + td.title          
+          pk = td.pk
           # (extra context data here in case we enable templates/JS etc.)
           rows.append({
             'view': link(title, reverse('term-preview', args=[pk])),
             'termpk': pk,
-            #'parent': t.parents[0],
-            'depth': t.depth,
+            'depth': td.depth,
             'edit': link('edit', reverse('term-edit', args=[pk]))
           })
       context['rows'] = rows
@@ -758,6 +757,7 @@ from django import forms
         #self.term_data = Terms.objects.all().values_list('pk', 'titles')
 
     #need a render override        
+        
         
 #https://stackoverflow.com/questions/15795869/django-modelform-to-have-a-hidden-input
 class TermForm(forms.Form):
@@ -995,7 +995,9 @@ def term_edit(request, term_pk):
           )
         # add in the non-model treepk field inits
         #?
-        parents = term_parents(term.pk)
+       # parents = term_parents(term.pk)
+        parents = term_parent_data(term.tree, term.pk)
+        
         initial['parents'] = parents[0] if (parents) else -1
         initial['parent_choices'] = tree_term_select_titles(term.pk)
 

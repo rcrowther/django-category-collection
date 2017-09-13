@@ -78,11 +78,11 @@ urlpatterns = [
   #url(r'^term/(?P<pk>[-\w]+)/$', GenericObjectView.as_view(model=Term,)),
   
   # Order is important, actions before slugs
-  url(r'^tree/(?P<treepk>\d+)/term/list/$', never_cache(TermListView.as_view()), name='term-list'),
+  url(r'^tree/(?P<tree_pk>\d+)/term/list/$', never_cache(TermListView.as_view()), name='term-list'),
   #url(r'^term/list/$', TermListView.as_view()),
   url(r'^term/(?P<term_pk>\d+)/edit/$', never_cache(views.term_edit), name='term-edit'),
   url(r'^term/(?P<pk>\d+)/delete/$', views.term_delete, name='term-delete'),
-  url(r'^tree/(?P<treepk>\d+)/term/add/$', never_cache(views.term_add), name='term-add'),
+  url(r'^tree/(?P<tree_pk>\d+)/term/add/$', never_cache(views.term_add), name='term-add'),
   url(r'^term/(?P<pk>\d+)/$', GenericObjectView.as_view(model=Term,), name='term-preview'),
   url(r'^term/(?P<slug>[-\w]+)/$', GenericObjectView.as_view(model=Term,), name='term-detail'),
 
