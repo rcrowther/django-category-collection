@@ -53,9 +53,7 @@ this = sys.modules[__name__]
 # so this may be deprecated. But this can be part-cleared and allows
 # record retrieval from cache.
 this._tree_cache = {}
-#TreeData = namedtuple('TreeData', ['title', 'description', 'is_single', 'is_unique'])
 
-# tree_data
 def tree(tree_pk):
     '''
     Return a tree from an id.
@@ -67,39 +65,40 @@ def tree(tree_pk):
         xt = Tree.objects.all()
         for t in xt:
             this._tree_cache[int(t.pk)] = t
+        #![this._tree_cache[int(t.pk)] = t for t in xt]
     return this._tree_cache.get(int(tree_pk))
 
 
 
-this._term_data = {}
-TermData = namedtuple('TermData', ['tree', 'title', 'description'])
+#this._term_data = {}
+#TermData = namedtuple('TermData', ['tree', 'title', 'description'])
 
-def term_data(term_pk):
-  '''
-  data for a given term.
+#def term_data(term_pk):
+  #'''
+  #data for a given term.
   
-  @param treepk int or int-coercable string 
-  @return TermData named tuple
-  '''
-  pk = int(term_pk)
-  d = this._term_data.get(pk)
-  if (not d):
-    t = Term.objects.get(pk__exact=pk)
-    d = TermData(t.tree, t.title, t.description)
-    this._term_data[pk] = d
-  return d
+  #@param treepk int or int-coercable string 
+  #@return TermData named tuple
+  #'''
+  #pk = int(term_pk)
+  #d = this._term_data.get(pk)
+  #if (not d):
+    #t = Term.objects.get(pk__exact=pk)
+    #d = TermData(t.tree, t.title, t.description)
+    #this._term_data[pk] = d
+  #return d
 
 
 
-def term_treepk(term_pk):
-  '''
-  treepk for a given term pk.
-  Convenience method, but used internally.
+#def term_treepk(term_pk):
+  #'''
+  #treepk for a given term pk.
+  #Convenience method, but used internally.
   
-  @param treepk int or int-coercable string 
-  @return the pk. Guarenteed int.
-  '''
-  return int(term_data(term_pk).tree)
+  #@param treepk int or int-coercable string 
+  #@return the pk. Guarenteed int.
+  #'''
+  #return int(term(term_pk).tree)
 
 
 
@@ -108,107 +107,131 @@ def term_treepk(term_pk):
 
 # Cache of hierarchial associations
 # cache{tree_id: {term_id: [associated_term_ids]}}
-this._children = {}
-this._parents = {}
+this._child_cache = {}
+this._parent_cache = {}
 
-this._tree = {}
-TermFTData = namedtuple('TermFTData', ['pk',  'title', 'description', 'depth', 'parents'])
+# _term_data_cache{tree_id: [{term_id:TermTData...}]}
+this._term_data_cache = {}
+
+# storage tuples
+TermTData = namedtuple('TermFTData', ['title', 'slug', 'description'])
+TermFTData = namedtuple('TermFTData', ['pk', 'title', 'slug', 'description', 'depth'])
 
 
 def _cache_populate(tree_pk, e):  
     assert isinstance(tree_pk, int), "Not an integer!"
 
-    # data is from a db, needs type assurances    
-    parent = int(e[0])
-    term = int(e[1]) 
-    if (parent in this._children[tree_pk]):
-      this._children[tree_pk][parent].append(term)
+    # data is from raw SQL, needs type assurances  
+    term_pk = int(e[0])
+    parent_pk = int(e[1])
+    if (parent_pk in this._child_cache[tree_pk]):
+      this._child_cache[tree_pk][parent_pk].append(term_pk)
     else:
-      this._children[tree_pk][parent] = [term]
-    if (term in this._parents[tree_pk]):
-      this._parents[tree_pk][term].append(parent)
+      this._child_cache[tree_pk][parent_pk] = [term_pk]
+    if (term in this._parent_cache[tree_pk]):
+      this._parent_cache[tree_pk][term_pk].append(parent_pk)
     else:
-      this._parents[tree_pk][term] = [parent] 
+      this._parent_cache[tree_pk][term_pk] = [parent_pk] 
 
 
 
 def _assert_cache(tree_pk):
-      assert isinstance(tree_pk, int), "Not an integer!"
-      cached = this._children.get(tree_pk)
-      if (not cached):
-        
-        # ensure we start with -1 kv present, we may look for that
-        # as default
-        this._children[tree_pk] = {TermParent.NO_PARENT:[]}
-        this._parents[tree_pk] = {}
-        
-        #? Python claims to be functional---would a list be faster?
-        TermParent.system.foreach_ordered(tree_pk, partial(_cache_populate, tree_pk ))
-
-
-
+    '''
+    @return True if cache is available, else False 
+    '''
+    assert isinstance(tree_pk, int), "Not an integer!"
+    
+    # child cached used as mark for state of other tree cache
+    if (tree_pk in this._child_cache):
+      return True
+    else:
+        if (tree(tree_pk) == None):
+           return False
+        else:
+          # ensure we start with -1 kv present, we may look for that
+          # as default
+          this._child_cache[tree_pk] = {TermParent.NO_PARENT:[]}
+          this._parent_cache[tree_pk] = {}
+          
+          # Python claims to be functional...
+          TermParent.system.foreach_ordered(tree_pk, partial(_cache_populate, tree_pk ))
+    
+          # populate term data
+          xt = Term.objects.filter(tree__exact=tree_pk)
+          this._term_data_cache[tree_pk] = {
+              t.pk : TermTData(t.title, t.slug, t.description) 
+              for t in xt
+              }
+          return True
+    
 # why the parents? because we can, or is there some use?
 #? depth start at 0
 #! better max depth
-FULL_DEPTH = -1
+FULL_DEPTH = None
 def terms_flat_tree(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
-  '''
-  Return data from Terms as a flat tree.
-  Each item is an TermFTData (pk, title, description, extended with 'depth' and
-  'parents' attributes).
-  Note that depth starts at 0.
-  
-  @param tree_pk int or coercable string
-  @param parent_pk start from the children of this term. int or coercable string.
-  @param max_depth prune the tree beyond this value. Corresponds with
-   depth (value 0 will print one row, if data is available, at depth 0) 
-  @return list of TermFTData(pk, depth. [parent_ids]). Root ids will
-   be parented by [-1].
-  '''
-  treepk = int(tree_pk)
-  parentpk = int(parent_pk)
-  
-  _assert_cache(treepk)
-
-  #print('flat t access:')
-  #print(str(_children))
-  #print(str(_parents))
-  
-  children = this._children[treepk]
-  parents = this._parents[treepk]
-  _max_depth =  len(children) if max_depth < 0 else max_depth
-  tree = []
-
-  if (not parentpk in children):
-    # parentpk if valid was a leaf, return empty
-    return tree
+    '''
+    Return data from Terms as a flat tree.
+    Each item is an TermFTData (pk, title, description, extended with 'depth' and
+    'parents' attributes).
+    Note that depth starts at 0.
     
-  # Stack of levels to process. Each level is an iter.
-  # preload with the first set of children
-  child_pks = children[parentpk]
-  stack = [iter(child_pks)]
+    @param tree_pk int or coercable string
+    @param parent_pk start from the children of this term. int or coercable string.
+    @param max_depth prune the tree beyond this value. Corresponds with
+     depth (value 0 will print one row, if data is available, at depth 0) 
+    @return list of TermFTData(pk, title, slug, description, depth). None
+    if paramerters fail to verify. Empty list if tree has no terms. 
+    '''
+    treepk = int(tree_pk)
+    parentpk = int(parent_pk)
 
-  while stack:
-    it = stack.pop()
-    depth = len(stack)
+    # cache available?
+    if (not  _assert_cache(treepk)):
+        return None
 
-    while(True):
-      try:
-          pk = it.__next__()
-      except StopIteration:
-        break
-      td = term_data(pk)
-      tree.append(TermFTData(pk, td.title, td.description, depth, parents[pk]))
-      child_pks = children.get(pk)
-      
-      if (depth < _max_depth and child_pks):
-          # append current iter, to go back to after children
-          stack.append(it)
-          # append new depth of iter
-          stack.append(iter(child_pks))
-          break
+    tree = []
+    #print('flat t access:')
+    #print(str(this._child_cache))
+    #print(str(this._parent_cache))
+    #print(str(this._term_data_cache))
         
-  return tree
+    # unverifiable parentpk?
+    if (not ((parentpk in this._parent_cache[treepk]) or (parentpk == TermParent.NO_PARENT))):
+          # parentpk either not valid or a leaf, return empty
+      return None
+         
+    # clean access to these caches
+    children = this._child_cache[treepk]
+    parents = this._parent_cache[treepk]
+    term_data = this._term_data_cache[treepk]
+    _max_depth =  len(children) if (max_depth == None) else max_depth
+
+    # Stack of levels to process. Each level is an iter.
+    # preload with the first set of children
+    stack = [iter(children[parentpk])]
+    depth = 0
+    
+    while (stack and depth < _max_depth):
+        depth = len(stack)
+        it = stack.pop()
+    
+        while(True):
+            try:
+                pk = it.__next__()
+            except StopIteration:
+                # exhausted. Pop another iter at a previous depth
+                break
+            td = term_data[pk]
+            tree.append(TermFTData(pk, td.title, td.slug, td.description, depth))
+            child_pks = children.get(pk)
+            if (child_pks and depth < _max_depth):
+                # append current iter, will return after processing children
+                stack.append(it)
+                # append new depth of iter
+                stack.append(iter(child_pks))
+                break
+          
+    return tree
 
 
   
@@ -225,10 +248,10 @@ def cache_clear_term(treepk):
     # All actions modify the tree, as terms are anchored to them.
     # Term deletion produces a cascading delete, so needs a general
     # reset. 
-    this._term_data = {}
-    this._children = {}
-    this._parents = {}
-    this._tree[int(treepk)] = {}
+    this._term_data_cache = {}
+    this._child_cache = {}
+    this._parent_cache = {}
+    #this._tree[int(treepk)] = {}
 
 
 def cache_clear_term_create_update(tree_pk, term_pk=None):
@@ -243,11 +266,11 @@ def cache_clear_term_create_update(tree_pk, term_pk=None):
     # Term deletion produces a cascading delete, so needs a general
     # reset.     
     # if added, or updated after startup, no cache
-    if ((not term_pk is None) and (term_pk in this._term_data)):
-        del(this._term_data[int(term_pk)])
-    this._children = {}
-    this._parents = {}
-    this._tree[int(tree_pk)] = {}
+    if ((not term_pk is None) and (term_pk in this._term_data_cache)):
+        del(this._term_data_cache[int(term_pk)])
+    this._child_cache = {}
+    this._parent_cache = {}
+    #this._tree[int(tree_pk)] = {}
 
 
   
@@ -265,9 +288,9 @@ def cache_clear():
     ...or other general purpose.
     '''
     this._tree_cache = {}
-    this._term_data = {}
-    this._children = {}
-    this._parents = {}
+    this._term_data_cache = {}
+    this._child_cache = {}
+    this._parent_cache = {}
     this._tree = {}
 
 
@@ -303,6 +326,17 @@ def cache_clear():
 # add elements
 # remove elements  
 
+
+def term(term_pk):
+    '''
+    Return a term from an id.
+    
+    @param treepk int or int-coercable string 
+    @return a Tree, or None
+    '''
+    #! return None
+    return Term.objects.get(pk__exact==term_pk)
+
 def term_from_title(title):
     '''
     @return list of matching terms. Ordered by weight and then title.
@@ -310,26 +344,36 @@ def term_from_title(title):
     return Term.objects.order_by('weight', 'title').filter(title__exact=title)
 
 def term_tree(term):
-    ''''''
+    '''
+    The tree containing this term.
+    '''
+    #! use SQL to join
     return tree(term.tree)
 
-#?
+def tree_term_data(tree_pk):
+    '''
+    Data from all the terms in a tree.
+    
+    @return [(pk, name, description)]. Ordered by weight and then title.
+    '''
+    _assert_cache(tree_pk)
+    return this._term_data_cache[tree_pk]
+
 def tree_terms(tree_pk):
     '''
     All the terms in a tree.
+    Not usually necessary. Try the cached tree_term_data() method.
+    
     @return Ordered by weight and then title.
     '''
-    _assert_cache(tree_pk)
-    
-    #? can't use cache, need ordered
-    return this._term_data[tree_pk]
-  
+    return Terms.objects.order_by('weight', 'title').filter(tree__exact==tree_pk)
+      
 def trees():
     '''
     @return list of tree objects. Ordered by weight and then title.
     '''
     
-    # cache is dosordered dict, so SQL
+    # cache is disordered dict, so SQL
     return Tree.objects.order_by('weight', 'title').all()
 
 def term_parents(term_pk):
@@ -338,6 +382,9 @@ def term_parents(term_pk):
     '''
     return Term.system.parents_ordered(term_pk)
 
+# ascendors are currently a problem. They have a goof use as breadcrumbs
+# but locating terms in cached trees is a problem. The term amy not appear
+# in branches of a multiple hierarchy. For now, SQL. 
 def term_ancestors(term_pk):
   #? do through cache?
     b = []
@@ -356,12 +403,12 @@ def ancestor_pks(term_pk=TermParent.NO_PARENT):
     @return list of child ids
     '''
     
-    # Works from the raw tree data. Much easier than finding when and
+    # Works from the SQL queires. Easier than finding when and
     # if tree elements are ancestors.
     tpk = int(term_pk)
-    treepk = term_treepk(tpk)
+    treepk = term(tpk).tree
     _assert_cache(treepk)
-    parents = this._parents[treepk]
+    parents = this._parent_cache[treepk]
     
     b = []
     # block on initial sentinel
@@ -402,7 +449,7 @@ def term_descendant_pks(pk):
     Find all descendant pks of a term
     @return list of child ids
     '''
-    tree_pk = term_treepk(pk)
+    tree_pk = term(pk).tree
     t = terms_flat_tree(tree_pk, pk)
     return [e.pk for e in t]
 
@@ -482,13 +529,13 @@ def tree_term_titles(tree_pk):
   
 #def parent_data(termpk):
     #_assert_cache(tree_pk)
-    #return [_term_data(pk) for pk in  this._parents[treepk]
+    #return [_term_data(pk) for pk in  this._parent_cache[treepk]
 
 #-
 def term_parent_pks(tree_pk, pk):
     treepk = int(tree_pk)
     _assert_cache(treepk)
-    return this._parents[treepk][int(pk)]
+    return this._parent_cache[treepk][int(pk)]
   
 
 ##############################################
@@ -527,7 +574,7 @@ def tree_term_select_titles(term_pk):
     '''
     # coercion needed for the test below
     pk = int(term_pk)
-    tree_pk = term_treepk(pk)
+    tree_pk = term(pk).tree
     
     # assert a root item
     b = [(TermParent.NO_PARENT, '<root>')]
@@ -660,7 +707,6 @@ class TermListView(TemplateView):
         raise Http404(tmpl_404_redirect_message(Tree))   
         
       context = super(TermListView, self).get_context_data(**kwargs)
-      print(str(this._tree_cache))
       context['title'] = tmpl_instance_message("Terms in", tree1.title)
       context['tools'] = [link('Add', reverse('term-add', args=[tree1.pk]))]
       context['headers'] = [mark_safe('TITLE'), mark_safe('ACTION')]
@@ -781,25 +827,25 @@ class TermForm(forms.Form):
           
           
 # From ModelForm...
-def model_to_dict(instance):
-    """
-    Return a dict containing the data in ``instance`` suitable for passing as
-    a Form's ``initial`` keyword argument.
+#def model_to_dict(instance):
+    #"""
+    #Return a dict containing the data in ``instance`` suitable for passing as
+    #a Form's ``initial`` keyword argument.
 
-    ``fields`` is an optional list of field names. If provided, return only the
-    named.
+    #``fields`` is an optional list of field names. If provided, return only the
+    #named.
 
-    ``exclude`` is an optional list of field names. If provided, exclude the
-    named from the returned dict, even if they are listed in the ``fields``
-    argument.
-    """
-    opts = instance._meta
-    data = {}
-    for f in chain(opts.concrete_fields, opts.private_fields, opts.many_to_many):
-        if not getattr(f, 'editable', False):
-            continue
-        data[f.name] = f.value_from_object(instance)
-    return data
+    #``exclude`` is an optional list of field names. If provided, exclude the
+    #named from the returned dict, even if they are listed in the ``fields``
+    #argument.
+    #"""
+    #opts = instance._meta
+    #data = {}
+    #for f in chain(opts.concrete_fields, opts.private_fields, opts.many_to_many):
+        #if not getattr(f, 'editable', False):
+            #continue
+        #data[f.name] = f.value_from_object(instance)
+    #return data
   
 
 def tree_pk(termpk):

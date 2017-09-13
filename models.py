@@ -319,7 +319,9 @@ class Term(models.Model):
 
 class TermParentManager(models.Manager):
 
-    _SQLTermParentage = "SELECT h.parent, t.id FROM taxonomy_termparent h, taxonomy_term t WHERE t.tree = %s and t.id = h.term ORDER BY t.weight, t.title"
+    #_SQLTermParentage = "SELECT h.parent, t.id FROM taxonomy_termparent h, taxonomy_term t WHERE t.tree = %s and t.id = h.term ORDER BY t.weight, t.title"
+    #_SQLTermParentage = "SELECT h.parent, t.* FROM taxonomy_term t, taxonomy_termparent h WHERE t.tree = %s and t.id = h.term ORDER BY t.weight, t.title"
+    _SQLTermParentage = "SELECT h.term, h.parent FROM taxonomy_termparent h, taxonomy_term t WHERE t.tree = %s and t.id = h.term ORDER BY t.weight, t.title"
 
     #? not sure if this functional approach is best for Python,
     # but code is where it should be (could return a list...)
@@ -329,7 +331,7 @@ class TermParentManager(models.Manager):
       The term pks are ordered by weight and title, in that order.
       NB: raw SQL query
       
-      @return a raw fetchall---iterable list of (parent_pk, term_pk)
+      @param func (term_id, parent_id) as raw fetchall.
       '''
       with connection.cursor() as c:
           c.execute(self._SQLTermParentage, [tree_pk])
