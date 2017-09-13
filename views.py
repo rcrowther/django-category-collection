@@ -64,41 +64,8 @@ def tree(tree_pk):
     if (not this._tree_cache):
         xt = Tree.objects.all()
         for t in xt:
-            this._tree_cache[int(t.pk)] = t
-        #![this._tree_cache[int(t.pk)] = t for t in xt]
+           this._tree_cache[int(t.pk)] = t
     return this._tree_cache.get(int(tree_pk))
-
-
-
-#this._term_data = {}
-#TermData = namedtuple('TermData', ['tree', 'title', 'description'])
-
-#def term_data(term_pk):
-  #'''
-  #data for a given term.
-  
-  #@param treepk int or int-coercable string 
-  #@return TermData named tuple
-  #'''
-  #pk = int(term_pk)
-  #d = this._term_data.get(pk)
-  #if (not d):
-    #t = Term.objects.get(pk__exact=pk)
-    #d = TermData(t.tree, t.title, t.description)
-    #this._term_data[pk] = d
-  #return d
-
-
-
-#def term_treepk(term_pk):
-  #'''
-  #treepk for a given term pk.
-  #Convenience method, but used internally.
-  
-  #@param treepk int or int-coercable string 
-  #@return the pk. Guarenteed int.
-  #'''
-  #return int(term(term_pk).tree)
 
 
 
@@ -238,60 +205,39 @@ def terms_flat_tree(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
 ################################################
 ## Cache clear
 
-def cache_clear_term(treepk):
+def cache_clear_flat_tree(treepk):
     '''
-    For all term action modifying state.
-    Kills the given tree. Empties term data.
+    Kill the given tree within the flat data cache.
+    For actions modifying term state.
   
     @param tree_pk must exist or simple exception
     '''
     # All actions modify the tree, as terms are anchored to them.
     # Term deletion produces a cascading delete, so needs a general
     # reset. 
-    this._term_data_cache = {}
-    this._child_cache = {}
-    this._parent_cache = {}
-    #this._tree[int(treepk)] = {}
-
-
-def cache_clear_term_create_update(tree_pk, term_pk=None):
-    '''
-    For all term action modifying state.
-    Kills the given tree. Deletes term data.
-    
-    @param tree_pk must exist or simple exception
-    @param term_pk must exist or simple exception
-    '''
-    # All actions modify the tree, as terms are anchored to them.
-    # Term deletion produces a cascading delete, so needs a general
-    # reset.     
-    # if added, or updated after startup, no cache
-    if ((not term_pk is None) and (term_pk in this._term_data_cache)):
-        del(this._term_data_cache[int(term_pk)])
-    this._child_cache = {}
-    this._parent_cache = {}
-    #this._tree[int(tree_pk)] = {}
-
+    del(this._term_data_cache[treepk])
+    del(this._child_cache[treepk])
+    del(this._parent_cache[treepk])
 
   
-def cache_clear_tree_create_update():
+def cache_clear_tree_cache():
     '''
-    For create or update on a Tree
-    Clears tree data. 
+    Clear cached tree (not flat tree) data. 
+    For create or update on a Tree. There is no need to touch flat tree
+    data for this.
     '''
     this._tree_cache = {}
 
 
 def cache_clear():
     '''
-    For tree delete.
-    ...or other general purpose.
+    Reset all caches.
+    *warning* drastic measures only ...or other general purpose.
     '''
     this._tree_cache = {}
     this._term_data_cache = {}
     this._child_cache = {}
     this._parent_cache = {}
-    this._tree = {}
 
 
 
@@ -330,39 +276,57 @@ def cache_clear():
 def term(term_pk):
     '''
     Return a term from an id.
+    Not usually necessary. If you have the tree pk, try term_data().
     
     @param treepk int or int-coercable string 
-    @return a Tree, or None
+    @return a Term, or None
     '''
     #! return None
-    return Term.objects.get(pk__exact==term_pk)
+    try:
+        return Term.objects.get(pk__exact=term_pk)
+    except Term.DoesNotExist:
+        return None
 
+def term_data(treepk, term_pk):
+    '''
+    Term data.
+    From cache.
+    
+    @return [(pk, name, description)], or None.
+    '''
+    if (_assert_cache(tree_pk) == None):
+        return None
+    else:
+        return this._term_data_cache[int(tree_pk)].get(int(term_pk))
+  
 def term_from_title(title):
     '''
     @return list of matching terms. Ordered by weight and then title.
     '''
     return Term.objects.order_by('weight', 'title').filter(title__exact=title)
 
-def term_tree(term):
+def term_tree(term_pk):
     '''
-    The tree containing this term.
-    '''
-    #! use SQL to join
-    return tree(term.tree)
-
-def tree_term_data(tree_pk):
-    '''
-    Data from all the terms in a tree.
+    The tree containing this term pk.
     
-    @return [(pk, name, description)]. Ordered by weight and then title.
+    @return the object, or None
     '''
-    _assert_cache(tree_pk)
-    return this._term_data_cache[tree_pk]
+    return Term.system.tree(int(term_pk))
+
+#?-
+#def tree_term_data(tree_pk):
+    #'''
+    #Data from all the terms in a tree.
+    #From cache. But a disordered hash return.
+    
+    #@return {pk: (title, slug, description)...} Or None.
+    #'''
+    #_assert_cache(tree_pk)
+    #return this._term_data_cache.get[tree_pk]
 
 def tree_terms(tree_pk):
     '''
     All the terms in a tree.
-    Not usually necessary. Try the cached tree_term_data() method.
     
     @return Ordered by weight and then title.
     '''
@@ -370,67 +334,91 @@ def tree_terms(tree_pk):
       
 def trees():
     '''
-    @return list of tree objects. Ordered by weight and then title.
-    '''
+    All Trees.
     
+    @return list of tree objects, ordered by weight and then title.
+    '''
     # cache is disordered dict, so SQL
     return Tree.objects.order_by('weight', 'title').all()
 
-def term_parents(term_pk):
+def term_parent_data(tree_pk, term_pk):
     '''
+    From cache.
     @return list of term tuples. Ordered by weight and then title.
     '''
-    return Term.system.parents_ordered(term_pk)
+    if (_assert_cache(tree_pk) == None):
+        return None
+    else:
+        return this._parent_cache[int(tree_pk)].get(int(term_pk))    
+
+
+def term_child_data(tree_pk, term_pk):
+    '''
+    @return list of term objects. Ordered by weight and then title.
+    '''
+    if (_assert_cache(tree_pk) == None):
+        return None
+    else:
+        return this._child_cache[int(tree_pk)].get(int(term_pk)) 
+
 
 # ascendors are currently a problem. They have a goof use as breadcrumbs
 # but locating terms in cached trees is a problem. The term amy not appear
 # in branches of a multiple hierarchy. For now, SQL. 
-def term_ancestors(term_pk):
-  #? do through cache?
-    b = []
-    parents = term_parents(term_pk)
-    while (parents):
-        parent = parents.pop()
-        for p in term_parents(parent.pk):
-            parents.append(p)
-        b.append(parent)
-    return b
+def term_ancestor_data(tree_pk, term_pk):
+    '''
+    Return tree-ascending paths of data from Terms.
+    Each item in a path is an TermTData (pk, title, slug, description).
+    If the hierarchy is multiple, the return may 
+    contain several paths/trails. If the hierarcy is single, the 
+    function will only return one path.
+    Each trail starts at the given termpk and ends at a root. 
+    If the paths are used for display purposes, you may wish to reverse() them. 
+    
+    @param tree_pk int or coercable string
+    @param parent_pk start from the children of this term. int or coercable string.
+    @param max_depth prune the tree beyond this value. Corresponds with
+     depth (value 0 will print one row, if data is available, at depth 0) 
+    @return list of paths of TermTData(pk, title, slug, description). None
+    if paramerters fail to verify. Empty list if tree/term_pk has no parents. 
+    '''
+    ??? how get data on here, and what data?
+    if (not _assert_cache(int(tree_pk))):
+      return None
+    else:
+      parentc = this._parent_cache[int(tree_pk)]
+      parents = parentc.get(int(term_pk))
+      if (parents == None):
+        return None
+      else:
+        b = []
+        trail = []
+        trail_stash = [[p] for p in parents]
+        #print('trail_stash') 
+        #print(str(trail_stash)) 
+        while(trail_stash):
+            trail = trail_stash.pop()
+                          ##from taxonomy.views import *
+                          #term_ancestor_data()     
+            # make current trail
+            while(True):
+                head = trail[-1]
+                #print(str(head))
+                if (head == TermParent.NO_PARENT):
+                    #completed a trail
+                    b.append(trail)
+                    break
+                parents = parentc[head]
+                #parents 1+ put on a copy of the list, then store
+                for p in parents[1:]:
+                    #print('fork') 
+                    #print(str(p)) 
+                    trail_stash.append(list.copy(trail).append(p))
+                #parent 1 we pursue
+                trail.append(parents[0])
+        return b
   
-  #?
-def ancestor_pks(term_pk=TermParent.NO_PARENT):
-    '''
-    Find all parent ancestors
-    @return list of child ids
-    '''
-    
-    # Works from the SQL queires. Easier than finding when and
-    # if tree elements are ancestors.
-    tpk = int(term_pk)
-    treepk = term(tpk).tree
-    _assert_cache(treepk)
-    parents = this._parent_cache[treepk]
-    
-    b = []
-    # block on initial sentinel
-    if (pk > TermParent.NO_PARENT):
-        stack = parents[tpk]
-        while (stack):
-            tpk = stack.pop()
-            # Can drop/stop ascending if hit the no-parent sentinel
-            if (tpk > TermParent.NO_PARENT):
-                b.append(tpk)
-                tpks = parents[tpk]
-                for e in tpks:
-                    stack.append(e)
-      
-    return b
 
-#cache?
-def term_children(term_pk):
-    '''
-    @return list of term objects. Ordered by weight and then title.
-    '''
-    return Term.system.children_ordered(term_pk)
 
 def term_descendants(term_pk):
   # do through cache?
@@ -669,7 +657,7 @@ def _term_delete(request, pk):
                      
       if (request.method == 'POST'):
           Term.system.delete_recursive(pk)
-          cache_clear_term(treepk)
+          cache_clear_flat_tree(treepk)
     
           msg = tmpl_instance_message("Deleted Term", t.title)
           messages.add_message(request, messages.SUCCESS, msg)
@@ -742,7 +730,7 @@ class TermListView(TemplateView):
           rows.append({
             'view': link(title, reverse('term-preview', args=[pk])),
             'termpk': pk,
-            'parent': t.parents[0],
+            #'parent': t.parents[0],
             'depth': t.depth,
             'edit': link('edit', reverse('term-edit', args=[pk]))
           })
@@ -888,7 +876,7 @@ def term_add(request, tree_pk):
                 weight=f.cleaned_data['weight']
                 ) 
                 
-            cache_clear_term_create_update(treepk)
+            cache_clear_flat_tree(treepk)
           
             msg = tmpl_instance_message("Created new Term", f.cleaned_data['title'])
             messages.add_message(request, messages.SUCCESS, msg)
@@ -971,7 +959,7 @@ def term_edit(request, term_pk):
                 weight=f.cleaned_data['weight']
                 ) 
             
-            cache_clear_term_create_update(term.tree, term.pk)
+            cache_clear_flat_tree(term.tree)
 
             msg = tmpl_instance_message("Updated Term", term.title)
             messages.add_message(request, messages.SUCCESS, msg)
@@ -1125,7 +1113,7 @@ def tree_add(request):
         try:
           f.save()
           
-          cache_clear_tree_create_update()
+          cache_clear_tree_cache()
           
           msg = tmpl_instance_message("Created new Tree", f.cleaned_data['title'])
           messages.add_message(request, messages.ERROR, msg)
@@ -1160,10 +1148,11 @@ def tree_edit(request, pk):
         try:
           # update
           # thows errors if validate fails
+          #? this is adding?
           f.save()
           
           # cache is invalid
-          cache_clear_tree_create_update()
+          cache_clear_tree_cache()
           
           msg = tmpl_instance_message("Update tree", f.cleaned_data['title'])
           messages.add_message(request, messages.SUCCESS, msg)

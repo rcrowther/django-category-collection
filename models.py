@@ -259,8 +259,16 @@ class TermManager(models.Manager):
           c.close()
       return r
 
+  _SQLTree = "SELECT tr.* FROM taxonomy_tree tr, taxonomy_term t WHERE tr.id = t.tree and t.id = %s"
 
-
+  def tree(self, pk):
+      c = connection.cursor()
+      try:
+          c.execute(self._SQLTree, [pk])
+          r = c.fetchone()
+      finally:
+          c.close()
+      return r
       
 #! not to self?
 #! node too general
@@ -319,8 +327,6 @@ class Term(models.Model):
 
 class TermParentManager(models.Manager):
 
-    #_SQLTermParentage = "SELECT h.parent, t.id FROM taxonomy_termparent h, taxonomy_term t WHERE t.tree = %s and t.id = h.term ORDER BY t.weight, t.title"
-    #_SQLTermParentage = "SELECT h.parent, t.* FROM taxonomy_term t, taxonomy_termparent h WHERE t.tree = %s and t.id = h.term ORDER BY t.weight, t.title"
     _SQLTermParentage = "SELECT h.term, h.parent FROM taxonomy_termparent h, taxonomy_term t WHERE t.tree = %s and t.id = h.term ORDER BY t.weight, t.title"
 
     #? not sure if this functional approach is best for Python,
