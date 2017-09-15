@@ -155,21 +155,22 @@ def terms_flat_tree(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
         return None
 
     tree = []
-    #print('flat t access:')
-    #print(str(this._child_cache))
-    #print(str(this._parent_cache))
-    #print(str(this._term_data_cache))
+    print('terms_flat_tree:')
+    print(str(this._child_cache))
+    print(str(this._parent_cache))
+    print(str(this._term_data_cache))
         
     # unverifiable parentpk?
     if (not ((parentpk in this._parent_cache[treepk]) or (parentpk == TermParent.NO_PARENT))):
           # parentpk either not valid or a leaf, return empty
       return None
-         
+ 
     # clean access to these caches
     children = this._child_cache[treepk]
     parents = this._parent_cache[treepk]
     term_data = this._term_data_cache[treepk]
-    _max_depth = len(children) if (max_depth == None) else max_depth
+    _max_depth = (len(children) + 1) if (max_depth == None) else max_depth
+    print('build...' + str(_max_depth))
 
     # Stack of levels to process. Each level is an iter.
     # preload with the first set of children
@@ -203,23 +204,27 @@ def terms_flat_tree(tree_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
 ################################################
 ## Cache clear
 
-def cache_clear_flat_tree(treepk):
+def cache_clear_flat_tree(tree_pk):
     '''
     Kill the given tree within the flat data cache.
     For actions modifying term state.
   
     @param tree_pk must exist or simple exception
     '''
-    # All actions modify the tree, as terms are anchored to them.
+    # Term actions may modify the tree, as terms are anchored to them.
     # Term deletion produces a cascading delete, so needs a general
     # reset. 
+    print('cache_clear_flat_tree')
+    print(str(this._child_cache))
+    print(str(this._parent_cache))
     print(str(this._term_data_cache))
+    treepk = int(tree_pk)
     try:
         # may be empty, if never used...
         #(NB: controller child cache first)
         del(this._child_cache[treepk])
-        del(this._parent_cache[treepk])
-        del(this._term_data_cache[treepk])
+        #del(this._parent_cache[treepk])
+        #del(this._term_data_cache[treepk])
     except KeyError:
       # ...don't care.
       pass
@@ -230,6 +235,8 @@ def cache_clear_tree_cache():
     For create or update on a Tree. There is no need to touch flat tree
     data for this.
     '''
+    print('cache_clear_tree_cache')
+    print(str( this._tree_cache))
     this._tree_cache = {}
 
 
@@ -981,37 +988,30 @@ def term_edit(request, term_pk):
 
 
 def _term_delete(request, pk):
-  
-      # whatever we are doing, we need the tree pk
       try:
-        t = Term.objects.get(pk__exact=pk)
-        treepk = t.tree
+        tm = Term.objects.get(pk__exact=pk)
       except Term.DoesNotExist:
-        # bail out to the main list
         msg = "Term with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
-            int(pk)
+            tm.pk
         )
         messages.add_message(request, messages.WARNING, msg) 
         return HttpResponseRedirect(reverse('tree-list'))
-
-                     
+        
       if (request.method == 'POST'):
-          Term.system.delete_recursive(pk)
-          cache_clear_flat_tree(treepk)
-    
-          msg = tmpl_instance_message("Deleted Term", t.title)
+          Term.system.delete_recursive(tm.pk)
+          cache_clear_flat_tree(tm.tree)
+          msg = tmpl_instance_message("Deleted Term", tm.title)
           messages.add_message(request, messages.SUCCESS, msg)
-          return HttpResponseRedirect(reverse('term-list', args=[treepk]))
-
+          return HttpResponseRedirect(reverse('term-list', args=[tm.tree]))
       else:
           message = '<p>Are you sure you want to delete the Term "{0}"?</p><p>Deleting a term will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a term will not delete elements attached to the term)</p>'.format(
-            html.escape(t.title)
+            html.escape(tm.title)
             )
           context={
-            'title': tmpl_instance_message("Delete term", t.title),
+            'title': tmpl_instance_message("Delete term", tm.title),
             'message': mark_safe(message),
-            'submit': {'message':"Yes, I'm sure", 'url': reverse('term-delete', args=[pk])},
-            'actions': [link('No, take me back', reverse("term-list", args=[treepk]), attrs={'class':'"button"'})],
+            'submit': {'message':"Yes, I'm sure", 'url': reverse('term-delete', args=[tm.pk])},
+            'actions': [link('No, take me back', reverse("term-edit", args=[tm.pk]), attrs={'class':'"button"'})],
           } 
           return render(request, 'taxonomy/delete_confirm_form.html', context)
 
@@ -1224,7 +1224,7 @@ def _tree_delete(request, tree_pk):
             'title': tmpl_instance_message("Delete tree", tm.title),
             'message': mark_safe(message),
             'submit': {'message':"Yes, I'm sure", 'url': reverse('tree-delete', args=[tm.pk])},
-            'actions': [link('No, take me back', reverse("tree-list"), attrs={'class':'"button"'})],
+            'actions': [link('No, take me back', reverse("tree-edit", args=[tm.pk]), attrs={'class':'"button"'})],
           } 
           return render(request, 'taxonomy/delete_confirm_form.html', context)
   
