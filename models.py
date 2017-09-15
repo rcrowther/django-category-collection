@@ -8,54 +8,35 @@ from django.db import connection
 class TreeManager(models.Manager):
 
   #? unused due to ModelForm
-  def create(self, title, slug, description, is_single, is_unique, weight, parents):
+  def create(self, title, slug, description, is_single, weight):
       '''
       @param parents an array of pk
       '''
-      Tree(
-          tree=treepk,
+      t= Tree(
           title=title,
           slug=slug,
           description=description,
           is_single=is_single,
-          is_unique=is_unique,
+          is_unique=True,
           weight=weight
-          ).save()
-
-      # set parents
-      #! Right now, only hammering single parent in?
-      for p in parents:
-        TermParent(
-          term=pk,
-          parent=p
-          ).save()
+          )
+      t.save()
       return t  
     
     
   #? unused due to ModelForm
-  def update(self,  pk, title, slug, description, is_single, is_unique, weight, parents=None):
-    t = Tree( 
-      pk=pk,
-      tree=treepk,
-      title=title,
-      slug=slug,
-      description=description,
-      is_single=is_single,
-      is_unique=is_unique,
-      weight=weight
-      )
-      
-    t.save()
-
-    # set parents
-    #! Right now, only hammering single parent in?
-    if (parents):
-      TermParent(
-        term=pk,
-        parent=parents
-        ).save()
-
-    return t
+  def update(self,  pk, title, slug, description, is_single, weight):
+      t = Tree( 
+        pk=pk,
+        title=title,
+        slug=slug,
+        description=description,
+        is_single=is_single,
+        is_unique=True,
+        weight=weight
+        )
+      t.save()
+      return t
 
 
   def delete(self, pk):
