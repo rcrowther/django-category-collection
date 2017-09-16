@@ -1,6 +1,5 @@
 from django.shortcuts import render
 
-# Create your views here.
 
 from django.views.generic import ListView
 from django.views.generic.detail import DetailView
@@ -26,7 +25,7 @@ from .models import Term, Tree, TermParent, TermNode
 # how big is that pk field?
 # check actions
 # check nodes
-# check weights
+#x check weights
 # access methods
 # have at look at SQL queries
 # paginate
@@ -34,7 +33,6 @@ from .models import Term, Tree, TermParent, TermNode
 # protect form fails
 # test permissions admin
 # generictemplate module detection
-# Tree form not ModelForm
 # set weight to zero button
 # maybe not parent to root when is root?
 # treelist is duplicating
@@ -688,9 +686,11 @@ class TermListView(TemplateView):
         # (...could if the tree is small, but let's be consistent)
         term_data_queryset = Term.objects.order_by('weight', 'title').filter(tree__exact=tree1.pk).values_list('pk', 'title')
         for e in term_data_queryset:
+          pk = e[0]
+          title = e[1]
           rows.append({
-            'view': link(e.title, reverse('term-preview', e.pk)),
-            'edit': link('edit', reverse('term-edit', e.pk))
+            'view': link(title, reverse('term-preview', args=[pk])),
+            'edit': link('edit', reverse('term-edit', args=[pk]))
           })    
       else:
         # single parentage can show the structure of the tree
@@ -720,6 +720,43 @@ class TermListView(TemplateView):
 
 from django import forms
 
+def _tree_tosingleparent(request, tree_pk):
+      try:
+        tm = Tree.objects.get(pk__exact=tree_pk)
+      except Tree.DoesNotExist:
+        msg = "Tree with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
+            tree_pk
+        )
+        messages.add_message(request, messages.WARNING, msg) 
+        return HttpResponseRedirect(reverse('tree-list'))
+        
+      if (request.method == 'POST'):
+          count = TermParent.system.multiple_to_single(tm.pk)
+          Tree.system.is_single(tm.pk, True)
+          cache_clear_flat_tree(tm.pk)
+          cache_clear_tree_cache()
+          msg = tmpl_instance_message("Tree is now single parent. Deleted {0} parent(s) in".format(count), tm.title)
+          messages.add_message(request, messages.SUCCESS, msg)
+          return HttpResponseRedirect(reverse('term-list', args=[tm.pk]))
+      else:
+          message = '<p>Are you sure you want to convert the Tree "{0}"?</p><p>Converting to single parent will remove duplicate parents.</p><p>The parents to remove can not be selected. If you wish to affect parentage, then edit term parents (delete to one parant) before converting the tree.</p><p>(this action will not affect elements attached to the terms)</p>'.format(
+            html.escape(tm.title)
+            )
+          context={
+            'title': tmpl_instance_message("Convert to single parent tree", tm.title),
+            'message': mark_safe(message),
+            'submit': {'message':"Yes, I'm sure", 'url': reverse('tree-tosingleparent', args=[tm.pk])},
+            'actions': [link('No, take me back', reverse("tree-edit", args=[tm.pk]), attrs={'class':'"button"'})],
+          } 
+          return render(request, 'taxonomy/delete_confirm_form.html', context)
+
+
+#@csrf_protect_m        
+def tree_tosingleparent(request, tree_pk):
+  # Lock the DB. Found this in admin.
+    with transaction.atomic(using=router.db_for_write(TermParent)):
+      return _tree_tosingleparent(request, tree_pk)
+  
 #class TermSelectWidget(forms.Select):
     #def __init__(self, attrs=None, choices=()):
         #super().__init__(attrs, choices)
@@ -837,7 +874,7 @@ class TermForm(forms.Form):
       # default is single parent. If multiple parent, override with
       # multiple-select.
       if(not tree_model.is_single):
-          self.fields['parents'] = TypedMultipleChoiceField()
+          self.fields['parents'] = forms.TypedMultipleChoiceField()
       
       # set choices
       pk = kwargs['initial'].get('pk')
@@ -1081,6 +1118,7 @@ class TreeForm(forms.Form):
       )
       
     is_single = forms.BooleanField(label='Single Parent',
+      required=False,
       help_text="Nunber of parents allowed for a term in the taxonomy (True = one only, False = many).",
       )
           
@@ -1105,7 +1143,6 @@ class TreeForm(forms.Form):
 def tree_add(request):
     if request.method == 'POST':
         f = TreeForm(request.POST)
-
         if f.is_valid():
             t = Tree.system.create(
                 title=f.cleaned_data['title'], 
@@ -1159,7 +1196,16 @@ def tree_edit(request, tree_pk):
             msg = "Tree failed to validate?"
             messages.add_message(request, messages.ERROR, msg)
             # falls through to another render
-        else:           
+        else:
+            print('haschanged:')
+            sgl = f.cleaned_data['is_single']
+            if (
+                f.fields['is_single'].has_changed(tm.is_single, sgl)
+                and sgl == True
+                ):
+                #! need warning...
+                return HttpResponseRedirect(reverse('tree-tosingleparent', args=[tm.pk]))
+                
             t = Tree.system.update(
                 pk=tm.pk, 
                 title=f.cleaned_data['title'], 
@@ -1209,7 +1255,6 @@ def _tree_delete(request, tree_pk):
         return HttpResponseRedirect(reverse('tree-list'))
              
       if (request.method == 'POST'):
-          # delete confirmed
           Tree.system.delete(tm.pk)
           cache_clear_flat_tree(tm.pk)
           cache_clear_tree_cache()

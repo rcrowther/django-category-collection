@@ -12,7 +12,7 @@ class TreeManager(models.Manager):
       '''
       @param parents an array of pk
       '''
-      t= Tree(
+      t = Tree(
           title=title,
           slug=slug,
           description=description,
@@ -55,9 +55,20 @@ class TreeManager(models.Manager):
     # tree
     Tree.objects.get(pk__exact=pk).delete() 
        
-        
-        
-        
+  _SQLIsSingle = "SET VALUE is_single=%s FROM taxonomy_tree tr WHERE tr.id = %s"
+
+  def is_single(self, pk, is_single):
+      '''
+      '''
+      #c = connection.cursor()
+      #try:
+          #c.execute(self._SQLIsSingle, [is_single, pk])
+      #finally:
+          #c.close()
+      #return r
+      m = Tree.objects.get(pk__exact=pk)
+      m.is_single=is_single
+      m.save()
         
 #? names and slugs do not have to be unique, as we may want to 
 # structure a website, for example, and there may be several 'news'
@@ -148,10 +159,13 @@ class TermManager(models.Manager):
 
     # set parents
     #! Right now, only hammering single parent in?
-    TermParent(
-      term=t.pk,
-      parent=parents
-      ).save()
+    if (isinstance(parents, list)):
+        TermParent.objects.bulk_create([TermParent(term=t.pk, parent=p) for p in parents])
+    else:
+        TermParent(
+          term=t.pk,
+          parent=parents
+          ).save()
 
     return t
 
@@ -171,10 +185,14 @@ class TermManager(models.Manager):
     # update parents
     #! Right now, only hammering single parent in?
     TermParent.objects.filter(term__exact=pk).delete()
-    TermParent(
-      term=pk,
-      parent=parents
-      ).save()
+    
+    if (isinstance(parents, list)):
+        TermParent.objects.bulk_create([TermParent(term=t.pk, parent=p ) for p in parents])
+    else:
+        TermParent(
+          term=pk,
+          parent=parents
+          ).save()
         
     return t
 
@@ -244,6 +262,7 @@ class TermManager(models.Manager):
 
   def tree(self, pk):
       c = connection.cursor()
+      r = None
       try:
           c.execute(self._SQLTree, [pk])
           r = c.fetchone()
@@ -270,7 +289,9 @@ class Term(models.Model):
     help_text="Name for the category. Limited to 255 characters.",
     )
     
-  # Not unique. Terms may be in different taxonomies
+  # Not unique. Terms may be in different taxonomies. They may
+  # be duplicated at different places in a hierarchy e.g. 'sports>news'
+  # 'local>news'.
   slug = models.SlugField(
     max_length=64,
     # unique specifies index
@@ -325,7 +346,38 @@ class TermParentManager(models.Manager):
           for e in c.fetchall():
             func(e)
 
-      
+    _SQLByTree = "SELECT h.* FROM taxonomy_termparent h, taxonomy_term t WHERE t.tree = %s and t.id = h.term"
+
+    #! probably not fast, but unimportant?
+    def multiple_to_single(self, tree_pk):
+          '''
+          Turn a multiparent tree into a single parent tree.
+          This is done by removing duplicate parents.
+          The tree may display an odd shape afterwards, 
+          Though still fully parented.
+          '''
+          # if 'term' is repeated, it must have multiple parents
+          # make a list of all data
+          c = connection.cursor()
+          qs = None
+          try:
+              c.execute(self._SQLByTree, [tree_pk])
+              qs = list(c.fetchall())
+          finally:
+              c.close()
+          # build list of duplicates
+          seen = []
+          duplicate_pks = []
+          for e in qs:
+              if e[1] in seen:
+                  duplicate_pks.append(e[0])
+              else:
+                  seen.append(e[1])
+          # remove pks  containing duplicate term fields
+          TermParent.objects.filter(pk__in=duplicate_pks).delete()
+          return len(duplicate_pks)
+
+
       
 # Separate the heirarchy associations
 # In a multi taxonomy, Terms may link to several parents.

@@ -89,6 +89,7 @@ urlpatterns = [
   url(r'^tree/list/$',  never_cache(TreeListView.as_view()), name='tree-list'),
   url(r'^tree/(?P<tree_pk>\d+)/edit/$', never_cache(views.tree_edit), name='tree-edit'),
   url(r'^tree/(?P<tree_pk>\d+)/delete/$', views.tree_delete, name='tree-delete'),
+  url(r'^tree/(?P<tree_pk>\d+)/tosingleparent/$', views.tree_tosingleparent, name='tree-tosingleparent'),
   url(r'^tree/add/$', never_cache(views.tree_add), name='tree-add'),
   url(r'^tree/(?P<slug>[-\w]+)/$', GenericObjectView.as_view(model=Tree,), name='tree-detail'),
 
