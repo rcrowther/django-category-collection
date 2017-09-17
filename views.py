@@ -29,13 +29,13 @@ from .models import Term, Tree, TermParent, TermNode
 # access methods
 # have at look at SQL queries
 # paginate
-# multiparents
-# protect form fails
+#x multiparents
+#x protect form fails
 # test permissions admin
 # generictemplate module detection
 # set weight to zero button
 # maybe not parent to root when is root?
-# treelist is duplicating
+#x treelist is duplicating
 #######################################################
 ## data caches
 
@@ -485,7 +485,7 @@ def element_terms(tree_pk, element_pk):
     
     @return queryset of terms. Ordered by weight and then title.
     '''
-    return TermNode.system.element_terms(tree_pk, element_pk)
+    return TermNode.system.tree_element_terms(tree_pk, element_pk)
 
 
     
@@ -768,21 +768,29 @@ def tree_tosingleparent(request, tree_pk):
     #need a render override        
         
 # widget
-#class TermSelect(forms.Select):
-    #def __init__(self, tree_pk, term_pk=None, attrs=None):
-        ## All titles...
-        #tree = terms_flat_tree(tree_pk)
-        #if (tree == None):
-            #raise KeyError('Unable to find tree data: tree_pk : {0}'.format(tree_pk))
-        ## assert a root item
-        #b = [(TermParent.NO_PARENT, '<root>')]    
-        #for e in tree: 
-            #b.append((e.pk, '-'*e.depth + html.escape(e.title)))
+def term_list(tree_pk):
+        # All titles...
+        tree = terms_flat_tree(tree_pk)
+        if (tree == None):
+            raise KeyError('Unable to find tree data: tree_pk : {0}'.format(tree_pk))
+         #! too easy to mix the two items
+        # assert an unparent item and a root item
+        b = [
+            (TermParent.UNPARENT, '<remove from categories>'),    
+            (TermParent.NO_PARENT, '<root>')
+            ]    
+        for e in tree: 
+            b.append((e.pk, '-'*e.depth + html.escape(e.title)))
+        return b
   
-        #choices = b
-        ##! do some titles?
-        #super().__init__(attrs, choices)
-       
+class TermSelect(forms.Select):
+    def __init__(self, tree_pk, attrs=None):
+        print('widget init')
+        #choices=term_list(1)
+        # from ChoiceWidget
+        super().__init__(attrs)
+
+      
        # widget
 #class TermSingleSelect(forms.Select):
     #def __init__(self, tree_pk, attrs=None):
@@ -821,15 +829,38 @@ def tree_tosingleparent(request, tree_pk):
         ##! do some titles?
         #super().__init__(attrs, choices)
         
-#from django.forms import TypedMultipleChoiceField, MultipleChoiceField
-#class TaxonomyMultipleTermField(forms.TypedMultipleChoiceField):
-    #def __init__(self, *args, **kwargs):
-      #super().__init__(*args, coerce=lambda val: int(val), **kwargs)
+from django.forms import TypedMultipleChoiceField, MultipleChoiceField
+from django.forms.fields import CallableChoiceIterator
 
-#class TaxonomySingleTermField(forms.TypedChoiceField):
-    #def __init__(self, *args, coerce=lambda val: val, empty_value='', **kwargs):
-      #super().__init__(*args, coerce=lambda val: int(val), empty_value=-1, **kwargs)
-      
+#class TermChoiceIterator(CallableChoiceIterator):
+#      def __init__(self, tree_pk):
+#          super().__init__(self, term_list(tree_pk))
+
+# Fails to answer several questions
+# - is it set to something already?
+# - How to react to multi[ple hierarchy?
+# - how to act on it? (TermNode.system.tree_remove(tree_pk), TermNode.system.create(tree_pk, element_pk))
+
+class TaxonomyMultipleTermField(forms.TypedMultipleChoiceField):
+    def __init__(self, tree_pk, *args, **kwargs):
+      super().__init__( choices=partial(term_list, tree_pk),*args, coerce=lambda val: int(val), **kwargs)
+
+    def valid_value(self, value):
+        print('valid value')
+        super().valid_value(value)        
+
+class TaxonomySingleTermField(forms.TypedChoiceField):
+    def __init__(self, tree_pk, *args, **kwargs):
+        super().__init__(choices=partial(term_list, tree_pk), *args, coerce=lambda val: int(val), empty_value=-1, **kwargs)
+
+    def valid_value(self, value):
+        print('valid value')
+        super().valid_value(value)        
+        
+        
+def node_save(tree_pk, element_pk):
+    TermNode.system.merge(tree_pk, element_pk)
+  
 #https://stackoverflow.com/questions/15795869/django-modelform-to-have-a-hidden-input
 class TermForm(forms.Form):
     '''

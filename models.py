@@ -6,8 +6,6 @@ from django.db import connection
 
 
 class TreeManager(models.Manager):
-
-  #? unused due to ModelForm
   def create(self, title, slug, description, is_single, weight):
       '''
       @param parents an array of pk
@@ -22,10 +20,8 @@ class TreeManager(models.Manager):
           )
       t.save()
       return t  
-    
-    
-  #? unused due to ModelForm
-  def update(self,  pk, title, slug, description, is_single, weight):
+        
+  def update(self, pk, title, slug, description, is_single, weight):
       t = Tree( 
         pk=pk,
         title=title,
@@ -37,7 +33,6 @@ class TreeManager(models.Manager):
         )
       t.save()
       return t
-
 
   def delete(self, pk):
     # term data
@@ -55,20 +50,19 @@ class TreeManager(models.Manager):
     # tree
     Tree.objects.get(pk__exact=pk).delete() 
        
-  _SQLIsSingle = "SET VALUE is_single=%s FROM taxonomy_tree tr WHERE tr.id = %s"
-
+  _SQLIsSingle = "UPDATE taxonomy_tree SET is_single=%s  WHERE id = %s"
   def is_single(self, pk, is_single):
       '''
+      Set parent status field.
+      Silent operation.
       '''
-      #c = connection.cursor()
-      #try:
-          #c.execute(self._SQLIsSingle, [is_single, pk])
-      #finally:
-          #c.close()
-      #return r
-      m = Tree.objects.get(pk__exact=pk)
-      m.is_single=is_single
-      m.save()
+      #! restore, when SQL is correct
+      c = connection.cursor()
+      try:
+          c.execute(self._SQLIsSingle, [is_single, pk])
+      finally:
+          c.close()
+
         
 #? names and slugs do not have to be unique, as we may want to 
 # structure a website, for example, and there may be several 'news'
@@ -78,7 +72,7 @@ class TreeManager(models.Manager):
 # place for that.
 #? That means a unique identifier from the data could be parent-term? 
   
-# We do want an id field here
+#? 'We do want an id field here'. Maybe we do, it makes duplicate removal easy?
 class Tree(models.Model):
   '''
   parent can be null, for top level. Therefore can be root also.
@@ -143,9 +137,7 @@ class Tree(models.Model):
 
 
 class TermManager(models.Manager):
-
-  print('inst TermManager')
-
+  
   def create(self, treepk, parents, title, slug, description, weight):
     t = Term( 
       tree=treepk,
@@ -158,7 +150,7 @@ class TermManager(models.Manager):
     t.save()
 
     # set parents
-    #! Right now, only hammering single parent in?
+    # react to lists of multiple parents
     if (isinstance(parents, list)):
         TermParent.objects.bulk_create([TermParent(term=t.pk, parent=p) for p in parents])
     else:
@@ -183,9 +175,10 @@ class TermManager(models.Manager):
     t.save()
 
     # update parents
-    #! Right now, only hammering single parent in?
+    # remove originals
     TermParent.objects.filter(term__exact=pk).delete()
     
+    # react to lists of multiple parents
     if (isinstance(parents, list)):
         TermParent.objects.bulk_create([TermParent(term=t.pk, parent=p ) for p in parents])
     else:
@@ -222,7 +215,6 @@ class TermManager(models.Manager):
       TermNode.objects.filter(term__exact=tpk).delete()
 
   _SQLParents = "SELECT t.* FROM taxonomy_term t, taxonomy_termparent h WHERE h.term = %s and t.id = h.parent ORDER BY t.weight, t.title"
-
   def parents_ordered(self, pk):
       #'SELECT t.tid, t.* FROM {term_data} t INNER JOIN {term_hierarchy} h ON h.parent = t.tid WHERE h.tid = %d ORDER BY weight, name', 't', 'tid'), $tid);
       '''
@@ -241,7 +233,6 @@ class TermManager(models.Manager):
       return r
 
   _SQLChildren = "SELECT t.* FROM taxonomy_term t, taxonomy_termparent h WHERE h.parent = %s and t.id = h.term ORDER BY t.weight, t.title"
-
   def children_ordered(self, pk):
       '''
       Parent/term pks for a given tree.
@@ -259,8 +250,10 @@ class TermManager(models.Manager):
       return r
 
   _SQLTree = "SELECT tr.* FROM taxonomy_tree tr, taxonomy_term t WHERE tr.id = t.tree and t.id = %s"
-
   def tree(self, pk):
+      '''
+      Tree for given term
+      '''
       c = connection.cursor()
       r = None
       try:
@@ -379,7 +372,7 @@ class TermParentManager(models.Manager):
 
 
       
-# Separate the heirarchy associations
+# Separate the hierarchy associations
 # In a multi taxonomy, Terms may link to several parents.
 # Sadly, this means means niether column is unique. Thus, neither can be 
 # declaared primary. Thus, an extra default auto-inc column will be
@@ -409,6 +402,9 @@ class TermParent(models.Model):
     #blank=True,
     help_text="Term parent for another term, or null for root (connection to self forbidden)",
     )
+
+  #handy here and ther
+  UNPARENT = -2
     
   # Now that would beggar belief, an auto-increment that allows -1...
   NO_PARENT = -1
@@ -424,10 +420,27 @@ class TermParent(models.Model):
     
     
 class TermNodeManager(models.Manager):
-  _SQLElementTerms = "SELECT t.* FROM taxonomy_term t, taxonomy_termnode e WHERE t.id = e.term and t.tree = %s e.node = %s  ORDER BY t.weight, t.title"
-    #$result = db_query(db_rewrite_sql('SELECT t.*,v.weight AS v_weight_unused FROM {term_node} r INNER JOIN {term_data} t ON r.tid = t.tid INNER JOIN {vocabulary} v ON t.vid = v.vid WHERE r.vid = %d ORDER BY v.weight, t.weight, t.name', 't', 'tid'), $node->vid);
+  #_SQLDeleteElement = "DELETE FROM taxonomy_termnode tn, taxonomy_term t WHERE tn.term = t.id and t.tree = %s"
 
-  def element_terms(self, tree_pk, pk): 
+  def create(self, term_pk, element_pk):
+      '''
+      create element attachment to a Term.
+      '''
+      # write the node
+      TermNode(term_pk, element_pk).save()
+
+  def merge(self, term_pk, element_pk):
+      '''
+      create/update element attachment to a Term.
+      '''
+      # delete node pks in term
+      TermNode.objects.filter(term__exact=term_pk, node__exact=element_pk).delete()
+       
+      # write the node
+      TermNode(term_pk, element_pk).save()
+
+  _SQLElementTerms = "SELECT t.* FROM taxonomy_term t, taxonomy_termnode e WHERE t.id = e.term and t.tree = %s e.node = %s  ORDER BY t.weight, t.title"
+  def tree_element_terms(self, tree_pk, pk): 
       '''
       Terms for a given element.
       The terms are ordered by weight and title, in that order.
@@ -444,6 +457,25 @@ class TermNodeManager(models.Manager):
           c.close()
       return r
       
+  def remove(self, term_pk, element_pk):
+      '''
+      Remove this element from a term 
+      '''
+
+      TermNode.objects.filter(term__exact=term_pk, node__exact=element_pk).delete()
+
+  def tree_remove(self, tree_pk, element_pk):
+      '''
+      Remove this element from a tree 
+      '''
+      # I think this a bit beyond the manager and the SQL (must delete 
+      # join terms on tree...)
+      # For now...
+      # all term ids in tree
+      term_pks = Term.filter(tree_exact=tree_pk).values__list('pk')
+      # match, delete the links
+      TermNode.objects.filter(term__in=term_pks, node__exact=element_pk).delete()
+
       
 # We want to 
 # - de-typify the object connection
