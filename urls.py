@@ -81,6 +81,8 @@ urlpatterns = [
   url(r'^tree/(?P<tree_pk>\d+)/term/list/$', never_cache(TermListView.as_view()), name='term-list'),
   #url(r'^term/list/$', TermListView.as_view()),
   url(r'^term/(?P<term_pk>\d+)/element/merge/$', never_cache(views.element_merge), name='element-merge'),
+  url(r'^tree/(?P<tree_pk>\d+)/element/(?P<element_pk>\d+)/delete/$', views.element_delete, name='element-delete'),
+
   url(r'^term/(?P<term_pk>\d+)/edit/$', never_cache(views.term_edit), name='term-edit'),
   url(r'^term/(?P<pk>\d+)/delete/$', views.term_delete, name='term-delete'),
   url(r'^tree/(?P<tree_pk>\d+)/term/add/$', never_cache(views.term_add), name='term-add'),

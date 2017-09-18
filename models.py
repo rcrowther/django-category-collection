@@ -440,7 +440,7 @@ class TermNodeManager(models.Manager):
           c.close()
 
 
-  _SQLElementTerms = "SELECT t.* FROM taxonomy_term t, taxonomy_termnode e WHERE t.id = e.term and t.tree = %s e.node = %s  ORDER BY t.weight, t.title"
+  _SQLElementTerms = "SELECT t.* FROM taxonomy_term t, taxonomy_termnode WHERE t.id = term_id and t.tree = %s and node = %s  ORDER BY t.weight, t.title"
   def tree_element_terms(self, tree_pk, pk): 
       '''
       Terms for a given element id, within a tree.
@@ -473,7 +473,7 @@ class TermNodeManager(models.Manager):
       # join terms on tree...)
       # For now...
       # all term ids in tree
-      term_pks = Term.filter(tree_exact=tree_pk).values__list('pk')
+      term_pks = Term.objects.filter(tree__exact=tree_pk).values_list('pk')
       # match, delete the links
       TermNode.objects.filter(term__in=term_pks, node__exact=element_pk).delete()
 

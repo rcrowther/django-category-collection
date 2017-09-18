@@ -1376,3 +1376,51 @@ def element_merge(request, term_pk):
 
     return render(request, 'taxonomy/generic_form.html', context)
 
+
+def _element_delete(request, tree_pk, element_pk):
+      try:
+        tm = Tree.objects.get(pk__exact=tree_pk)
+      except Tree.DoesNotExist:
+        msg = "Tree with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
+            tree_pk
+        )
+        messages.add_message(request, messages.WARNING, msg) 
+        return HttpResponseRedirect(reverse('tree-list'))
+        
+      xterms = TermNode.system.tree_element_terms(tm.pk, element_pk)
+      if (not xterms):
+        msg = "Element with ID '{0}' not attached to any term in Tree '{1}'. Perhaps it was deleted?".format(
+            element_pk,
+            html.escape(tm.title)
+        )
+        messages.add_message(request, messages.WARNING, msg) 
+        return HttpResponseRedirect(reverse('tree-list'))
+        
+      if (request.method == 'POST'):
+          #Term.system.delete_recursive(tm.pk)
+          TermNode.system.tree_remove(tm.pk, element_pk)
+          #cache_clear_flat_tree(tm.tree)
+          msg = tmpl_instance_message("Deleted element link", element_pk)
+          messages.add_message(request, messages.SUCCESS, msg)
+          return HttpResponseRedirect(reverse('term-list', args=[tm.pk]))
+      else:
+          message = '<p>Are you sure you want to delete the element link "{0}" from the tree "{1}"?</p><p>The element is attached to terms named {2}</p>'.format(
+            html.escape(element_pk),
+            html.escape(tm.title),
+            html.escape('"' + '", "'.join([t[1] for t in xterms]) + '"')
+            )
+          context={
+            'title': tmpl_instance_message("Delete element link '{0}' from Tree".format(element_pk), tm.title),
+            'message': mark_safe(message),
+            'submit': {'message':"Yes, I'm sure", 'url': reverse('element-delete', args=[tm.pk, element_pk])},
+            'actions': [link('No, take me back', reverse("element-merge", args=[tm.pk]), attrs={'class':'"button"'})],
+          } 
+          return render(request, 'taxonomy/delete_confirm_form.html', context)
+
+
+#@csrf_protect_m        
+def element_delete(request, tree_pk, element_pk):
+  # Lock the DB. Found this in admin.
+    with transaction.atomic(using=router.db_for_write(TermNode)):
+      return _element_delete(request, tree_pk, element_pk)
+  
