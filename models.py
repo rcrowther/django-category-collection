@@ -420,29 +420,30 @@ class TermParent(models.Model):
     
     
 class TermNodeManager(models.Manager):
-  #_SQLDeleteElement = "DELETE FROM taxonomy_termnode tn, taxonomy_term t WHERE tn.term = t.id and t.tree = %s"
-
-  def create(self, term_pk, element_pk):
-      '''
-      create element attachment to a Term.
-      '''
-      # write the node
-      TermNode(term_pk, element_pk).save()
-
+  _SQLCreate = "INSERT INTO taxonomy_termnode VALUES (null, %s, %s)"
+  _SQLDeleteElement = "DELETE FROM taxonomy_termnode WHERE term_id = %s and node = %s"
   def merge(self, term_pk, element_pk):
       '''
       create/update element attachment to a Term.
       '''
-      # delete node pks in term
-      TermNode.objects.filter(term__exact=term_pk, node__exact=element_pk).delete()
-       
-      # write the node
-      TermNode(term_pk, element_pk).save()
+      c = connection.cursor()
+      try:
+          # no test for existance, we simply delete if necessary 
+          # then insert.
+          # delete if exists node pks in term
+          c.execute(self._SQLDeleteElement, [term_pk, element_pk])
+          # write the node
+          c.execute(self._SQLCreate, [term_pk, element_pk])
+          #r = [e for e in c.fetchall()]
+          #db.commit()
+      finally:
+          c.close()
+
 
   _SQLElementTerms = "SELECT t.* FROM taxonomy_term t, taxonomy_termnode e WHERE t.id = e.term and t.tree = %s e.node = %s  ORDER BY t.weight, t.title"
   def tree_element_terms(self, tree_pk, pk): 
       '''
-      Terms for a given element.
+      Terms for a given element id, within a tree.
       The terms are ordered by weight and title, in that order.
       The return is full term info, not ids
       
@@ -486,9 +487,11 @@ class TermNodeManager(models.Manager):
 # auto field handling should work ok here.
 #! unwanted id field here
 #! rename TermElement
-#! node is unique per term? No, per tree.
+#! node is unique per term? That willdo, not per tree.
 #! must disallow duplicate pks on terms
 class TermNode(models.Model):
+  # term is ForeignKey as it plays well with Django 'admin'.
+  #not unique
   term = models.ForeignKey(
     Term, 
     on_delete=models.CASCADE,

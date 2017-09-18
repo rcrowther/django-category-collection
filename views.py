@@ -28,6 +28,7 @@ from .models import Term, Tree, TermParent, TermNode
 #x check weights
 # access methods
 # have at look at SQL queries
+# SQL commits and transactions?
 # paginate
 #x multiparents
 #x protect form fails
@@ -783,12 +784,12 @@ def term_list(tree_pk):
             b.append((e.pk, '-'*e.depth + html.escape(e.title)))
         return b
   
-class TermSelect(forms.Select):
-    def __init__(self, tree_pk, attrs=None):
-        print('widget init')
-        #choices=term_list(1)
-        # from ChoiceWidget
-        super().__init__(attrs)
+#class TermSelect(forms.Select):
+    #def __init__(self, tree_pk, attrs=None):
+        #print('widget init')
+        ##choices=term_list(1)
+        ## from ChoiceWidget
+        #super().__init__(attrs)
 
       
        # widget
@@ -1055,12 +1056,12 @@ def term_edit(request, term_pk):
     return render(request, 'taxonomy/generic_form.html', context)
 
 
-def _term_delete(request, pk):
+def _term_delete(request, term_pk):
       try:
-        tm = Term.objects.get(pk__exact=pk)
+        tm = Term.objects.get(pk__exact=term_pk)
       except Term.DoesNotExist:
         msg = "Term with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
-            tm.pk
+            term_pk
         )
         messages.add_message(request, messages.WARNING, msg) 
         return HttpResponseRedirect(reverse('tree-list'))
@@ -1312,3 +1313,66 @@ def tree_delete(request,tree_pk):
     with transaction.atomic(using=router.db_for_write(Tree)):
       return _tree_delete(request, tree_pk)
       
+
+###########################
+from .forms import NodeForm
+
+def element_merge(request, term_pk):
+    '''
+    Associate a pk for a foreign element with a term.
+    In english, 'add the id of an item to a category in the trees'.
+    Since the id only is used, there is no data to 'update', so this 
+    method is called 'merge'. If the id is already attached to the term
+    it will not be duplicated.
+    '''
+    # check the term exists
+    try:
+        tm = Term.objects.get(pk__exact=term_pk)
+    except Term.DoesNotExist:
+        msg = "Term with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
+            term_pk
+        )
+        messages.add_message(request, messages.WARNING, msg) 
+        return HttpResponseRedirect(reverse('tree-list'))
+
+    if request.method == 'POST':
+        # submitted data, populate
+        f = NodeForm(request.POST)
+
+        ## check whether it's valid:
+        if f.is_valid():
+            TermNode.system.merge(
+                term_pk=f.cleaned_data['pk'], 
+                element_pk=f.cleaned_data['element']
+                ) 
+            t = term(f.cleaned_data['pk'])
+            msg = tmpl_instance_message("Associated Element Id {0} to Term".format(f.cleaned_data['element']), t.title)
+            messages.add_message(request, messages.SUCCESS, msg)
+            return HttpResponseRedirect(reverse('term-list', args=[t.tree]))
+            
+        else:
+            msg = "Please correct the errors below."
+            messages.add_message(request, messages.ERROR, msg)
+            # falls through to another render
+            
+    else:
+        # empty form for add
+        f = NodeForm(initial=dict(
+          pk = tm.pk,
+          title = tm.title,
+          # set parents to the root (always exists, as an option) 
+          element = 55,
+          ))
+        
+    context={
+    'form': f,
+    'title': 'Add Element',
+    'navigators': [
+      link('Term List', reverse('term-list', args=[tm.tree])),
+      ],
+    'submit': {'message':"Save", 'url': reverse('element-merge', args=[tm.pk])},
+    'actions': [],
+    }
+
+    return render(request, 'taxonomy/generic_form.html', context)
+
