@@ -1,7 +1,7 @@
 import re
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _, ngettext_lazy
-from django.forms import IntegerField
+from django.forms import IntegerField, TypedMultipleChoiceField
 from .widgets import IDTitleAutocompleteInput
 
 
@@ -54,3 +54,38 @@ class IDTitleAutocompleteField(IntegerField):
             raise ValidationError(self.error_messages['invalid'], code='invalid')
         value = m.group(1)
         return super().to_python(value)
+
+#! unecessary. use choices()
+#class TermField(TypedMultipleChoiceField):
+    #'''
+    #Handle taxonomy terms.
+    #The one and only outstanding feature is that the Field requires a
+    #tree ID to filter terms offered. This property is set on 
+    #contained widgets (which must enable the property).
+    #@param tree_pk tree to offer terms from 
+    #'''
+    #def __init__(self, tree_pk, *args, **kwargs):
+        #super().__init__(*args, coerce=lambda val: int(val), **kwargs)
+        #self.tree_pk = tree_pk
+        
+    #def _get_tree_pk(self):
+        #return self._tree_pk
+
+    #def _set_tree_pk(self, value):
+        ## Setting ajax_href also sets the ajax_href on the widget.
+        #self._tree_pk = self.widget.tree_pk = value
+
+    #tree_pk = property(_get_tree_pk, _set_tree_pk)
+
+
+#class TaxonomySingleTermField(forms.TypedChoiceField):
+    #'''
+    #A field which only accepts
+    #A lightly customized field for vali
+    #'''
+    #def __init__(self, tree_pk, *args, **kwargs):
+        #super().__init__(choices=partial(term_list, tree_pk), *args, coerce=lambda val: int(val), empty_value=-1, **kwargs)
+
+    #def valid_value(self, value):
+        #print('valid value')
+        #super().valid_value(value) 

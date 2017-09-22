@@ -100,7 +100,14 @@ def _cache_populate(tree_pk, e):
       this._parent_cache[tree_pk][term_pk] = [parent_pk] 
 
 
-
+def cache_to_string():
+    b = []
+    b.append('child_cache:')
+    b.append(str(this._child_cache))
+    b.append('parent_cache:')
+    b.append(str(this._parent_cache))
+    return '\n'.join(b)
+  
 def _assert_cache(tree_pk):
     '''
     @return True if cache is available, else False 
@@ -373,9 +380,10 @@ def term_child_data(tree_pk, term_pk):
     else:
         return this._child_cache[int(tree_pk)].get(int(term_pk)) 
 
-# ascendors are currently a problem. They have a goof use as breadcrumbs
-# but locating terms in cached trees is a problem. The term amy not appear
-# in branches of a multiple hierarchy. For now, SQL. 
+# ascendors are currently a problem. They have a good use as breadcrumbs
+# but locating terms in cache is a problem. The term amy not appear
+# in branches of a multiple hierarchy. For now, SQL.
+# get parents no problem?
 def term_ancestor_data(tree_pk, term_pk):
     '''
     Return tree-ascending paths of data from Terms.
@@ -432,17 +440,43 @@ def term_ancestor_data(tree_pk, term_pk):
         return b
   
 
-
-#def term_descendants(term_pk):
+def term_ancestor_pks(term):
+    '''
+    All ancestor term pks.
+    @return a set of ancestor term pks
+    '''
   ## do through cache?
-    #b = []
-    #children = term_children(term_pk)
-    #while (children):
-        #child = children.pop()
-        #for c in term_children(child.pk):
-            #children.append(c)
-        #b.append(child)
-    #return b
+    _assert_cache(term.tree)
+    cc = this._parent_cache[term.tree]
+    b = set()
+    stack = cc[term.pk]
+    while (stack):
+        tpk = stack.pop()
+        if (tpk != -1):
+            parents = cc[tpk]
+            for parent in parents:
+                stack.append(parent)
+            b.add(tpk)
+    return b
+    
+def term_descendant_pks(term):
+    '''
+    All descendant term pks.
+    @return a set of descendant term pks
+    '''
+  ## do through cache?
+    _assert_cache(term.tree)
+    cc = this._child_cache[term.tree]
+    b = set()
+    stack = cc.get(term.pk)
+    while (stack):
+        tpk = stack.pop()
+        children = cc.get(tpk)
+        if (children):
+            for child in children:
+                stack.append(child)
+        b.add(tpk)
+    return b
 
 
 #def term_descendant_pks(pk):
@@ -855,14 +889,7 @@ class TaxonomyMultipleTermField(forms.TypedMultipleChoiceField):
     def valid_value(self, value):
         print('valid value')
         super().valid_value(value)        
-
-class TaxonomySingleTermField(forms.TypedChoiceField):
-    def __init__(self, tree_pk, *args, **kwargs):
-        super().__init__(choices=partial(term_list, tree_pk), *args, coerce=lambda val: int(val), empty_value=-1, **kwargs)
-
-    def valid_value(self, value):
-        print('valid value')
-        super().valid_value(value)        
+       
         
         
 def node_save(tree_pk, element_pk):
@@ -1321,7 +1348,7 @@ def tree_delete(request,tree_pk):
       
 
 ###########################
-from .forms import NodeForm
+from .forms import ElementForm
 
 def element_merge(request, term_pk):
     '''
@@ -1343,7 +1370,7 @@ def element_merge(request, term_pk):
 
     if request.method == 'POST':
         # submitted data, populate
-        f = NodeForm(request.POST)
+        f = ElementForm(request.POST)
 
         ## check whether it's valid:
         if f.is_valid():
@@ -1363,7 +1390,7 @@ def element_merge(request, term_pk):
             
     else:
         # empty form for add
-        f = NodeForm(initial=dict(
+        f = ElementForm(initial=dict(
           pk = tm.pk,
           title = tm.title,
           # set parents to the root (always exists, as an option) 
@@ -1482,6 +1509,8 @@ def tree_term_titles_view(request, tree_pk):
 
 from .fields import IDTitleAutocompleteField
 from .widgets import IDTitleAutocompleteInput
+from django.core.exceptions import ImproperlyConfigured
+
     
 class ElementSearchForm(forms.Form):
     #pk = forms.IntegerField(label='Element Id', min_value=0,
@@ -1494,7 +1523,7 @@ class ElementSearchForm(forms.Form):
       help_text="Title of an element to be categorised."
       )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, tree_pk, *args, **kwargs):
       super().__init__(*args, **kwargs)
 
 

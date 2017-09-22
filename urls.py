@@ -5,7 +5,6 @@ from django.views.decorators.cache import never_cache
 from generic_view_template.views import GenericObjectView, GenericQuerySetAnchorView
 from taxonomy.views import TreeListView, TermListView #, ElementSearchView
 from taxonomy.models import Term, Tree
-from paper.models import Paper
 from generic_view_template import rend
 
 from . import views
@@ -103,7 +102,7 @@ urlpatterns = [
   url(r'^$', never_cache(TreeListView.as_view()), name='tree-list'),
 
 
-  url(r'^article/(?P<pk>[-\w]+)/$', GenericObjectView.as_view(model=Paper, renderers={'image': rend.empty, 'mini_image_url': rend.as_image })),
+  #url(r'^article/(?P<pk>[-\w]+)/$', GenericObjectView.as_view(model=Paper, renderers={'image': rend.empty, 'mini_image_url': rend.as_image })),
   # admin/taxonomy/id list of terms
   # edit/term/id
 ]

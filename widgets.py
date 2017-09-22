@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.forms import Media, TextInput
+from django.core.exceptions import ImproperlyConfigured
 
 
 
@@ -40,7 +41,8 @@ class IDTitleAutocompleteInput(TextInput):
         context = super().get_context(name, value, attrs)
         # delay setting of href to allow a field to poke in
         if (self.ajax_href is None):
-            raise AttributeError('no href defined')
+            raise ImproperlyConfigured('no ajax_href defined')
             
         context['widget']['attrs'].update({'ajaxref': self.ajax_href})
         return context
+
