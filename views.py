@@ -442,17 +442,16 @@ def term_ancestor_data(tree_pk, term_pk):
 
 def term_ancestor_pks(term):
     '''
-    All ancestor term pks.
-    @return a set of ancestor term pks
+    Term ancestor pks.
+    @return set of ancestor term pks
     '''
-  ## do through cache?
     _assert_cache(term.tree)
     cc = this._parent_cache[term.tree]
     b = set()
-    stack = cc[term.pk]
+    stack = list(cc[term.pk])
     while (stack):
         tpk = stack.pop()
-        if (tpk != -1):
+        if (tpk != TermParent.NO_PARENT):
             parents = cc[tpk]
             for parent in parents:
                 stack.append(parent)
@@ -461,14 +460,13 @@ def term_ancestor_pks(term):
     
 def term_descendant_pks(term):
     '''
-    All descendant term pks.
-    @return a set of descendant term pks
+    Term descendant pks.
+    @return set of descendant term pks
     '''
-  ## do through cache?
     _assert_cache(term.tree)
     cc = this._child_cache[term.tree]
     b = set()
-    stack = cc.get(term.pk)
+    stack = list(cc.get(term.pk))
     while (stack):
         tpk = stack.pop()
         children = cc.get(tpk)
@@ -478,6 +476,23 @@ def term_descendant_pks(term):
         b.add(tpk)
     return b
 
+def tree_pks(tree_pk):
+    '''
+    All pks in a tree.
+    @return set of descendant term pks
+    '''
+    _assert_cache(tree_pk)
+    cc = this._child_cache[tree_pk]
+    b = set()
+    stack = list(cc[TermParent.NO_PARENT])
+    while (stack):
+        tpk = stack.pop()
+        children = cc.get(tpk)
+        if (children):
+            for child in children:
+                stack.append(child)
+        b.add(tpk)
+    return b  
 
 #def term_descendant_pks(pk):
     #'''
@@ -547,19 +562,38 @@ def term_descendants_element_count(term_pk):
     return count
   
 ######################
+# These two are mainly for admin, to construct selectors and JSON
 # Move to a plugin views?
 
+# term_title_search
 def tree_term_titles(tree_pk, pattern=None):
     '''
-    Get terms in a tree
+    Get term pk/titles in a tree
     Case insensitive. 
     @ pattern if given, only titles starting with this pattern are included 
     @return list of term data tuples (pk, title, description)
     '''
+    # mainly for JSON admin when choosing terms
     if (pattern is not None):
         return Term.objects.filter(tree__exact=tree_pk, title__istartswith=pattern).values_list('pk', 'title', 'description')
     else:
         return Term.objects.filter(tree__exact=tree_pk).values_list('pk', 'title', 'description')
+
+
+def term_descendant_exclusive_pks(tree_pk, term):
+    '''
+    Terms from the tree but not a decendent of the given term_pk.
+    @return set of pks from a tree which do not descend from, or include,
+    the given term_pk.
+    '''
+    # This value is mainly for the elimination of child selections when
+    # choosing terms (to avoid circular dependencies)
+    dpks = term_descendant_pks(term)
+    dpks.add(term.pk)
+    pks = tree_pks(tree_pk)
+    pks.difference_update(dpks)
+    return pks
+
 
 ##############################################
 ## cache accessors
