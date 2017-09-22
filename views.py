@@ -23,6 +23,7 @@ from .models import Term, Tree, TermParent, TermNode
 # TODO:
 # Some url solution
 # how big is that pk field?
+# bulk add/delete (nodes and terms especially)
 # check actions
 # check nodes
 #x check weights
@@ -37,6 +38,7 @@ from .models import Term, Tree, TermParent, TermNode
 # set weight to zero button
 # maybe not parent to root when is root?
 #x treelist is duplicating
+#clearup the overcooked js
 #######################################################
 ## data caches
 
@@ -511,15 +513,19 @@ def term_descendants_element_count(term_pk):
     return count
   
 ######################
-#-
-def tree_term_titles(tree_pk):
-  '''
-  Get terms in a tree
-  @return list of term data tuples (pk, title)
-  '''
-  return Term.objects.filter(tree__exact=tree_pk).values_list('pk', 'title', 'description')
+# Move to a plugin views?
 
-
+def tree_term_titles(tree_pk, pattern=None):
+    '''
+    Get terms in a tree
+    Case insensitive. 
+    @ pattern if given, only titles starting with this pattern are included 
+    @return list of term data tuples (pk, title, description)
+    '''
+    if (pattern is not None):
+        return Term.objects.filter(tree__exact=tree_pk, title__istartswith=pattern).values_list('pk', 'title', 'description')
+    else:
+        return Term.objects.filter(tree__exact=tree_pk).values_list('pk', 'title', 'description')
 
 ##############################################
 ## cache accessors
@@ -1229,7 +1235,7 @@ def tree_edit(request, tree_pk):
             messages.add_message(request, messages.ERROR, msg)
             # falls through to another render
         else:
-            print('haschanged:')
+            #print('haschanged:')
             sgl = f.cleaned_data['is_single']
             if (
                 f.fields['is_single'].has_changed(tm.is_single, sgl)
@@ -1306,7 +1312,7 @@ def _tree_delete(request, tree_pk):
           return render(request, 'taxonomy/delete_confirm_form.html', context)
   
 
-#@csrf_protect_m        
+#@csrf_protect_m     b   
 def tree_delete(request,tree_pk):
     # Lock the DB. Found this in admin.
     #? lock what? How?
@@ -1361,7 +1367,7 @@ def element_merge(request, term_pk):
           pk = tm.pk,
           title = tm.title,
           # set parents to the root (always exists, as an option) 
-          element = 55,
+          element = 0,
           ))
         
     context={
@@ -1424,3 +1430,109 @@ def element_delete(request, tree_pk, element_pk):
     with transaction.atomic(using=router.db_for_write(TermNode)):
       return _element_delete(request, tree_pk, element_pk)
   
+###
+#from .forms import ElementSearchForm
+
+#class ElementSearchView(TemplateView):
+  #template_name = "taxonomy/generic_form.html"
+  
+  #def get_context_data(self, **kwargs):
+      ##tree1 = tree(int(kwargs['tree_pk']))
+      ##if (tree1 == None):
+        ###? cannt redirect in this view?
+        ##raise Http404(tmpl_404_redirect_message(Tree))  
+
+      #element_pk = kwargs['element_pk']
+      #f = ElementSearchForm(initial=dict(
+          #pk = element_pk,
+          #title = 'qqq'
+          #))
+          
+      #context = super(ElementSearchView, self).get_context_data(**kwargs)
+      #context['form'] = f,
+      #context['title'] = 'Link Element',
+      #context['navigators'] = [
+          #link('Term List', reverse('term-list', args=[1])),
+          #],
+      #context['submit'] = {'message':html.escape("Save"), 'url': reverse('element-link', args=[element_pk])},
+      #context['actions'] = [],
+
+      #return context
+
+import json
+from django.http import JsonResponse
+
+#- (merge)
+#def term_titles_view(request, tree_pk):
+    #tl = None
+    #if request.method == 'GET':
+        #tl = list(tree_term_titles(tree_pk))
+    #print(str(tl))
+    #return JsonResponse(tl, safe=False)
+    
+    
+#http://127.0.0.1:8000/taxonomy/term_titles_ajax/29/
+def tree_term_titles_view(request, tree_pk):
+    tl = None
+    if request.method == 'GET':
+        tl = list(tree_term_titles(tree_pk, request.GET.get('search')))
+    return JsonResponse(tl, safe=False)
+
+
+
+from .fields import IDTitleAutocompleteField
+from .widgets import IDTitleAutocompleteInput
+    
+class ElementSearchForm(forms.Form):
+    #pk = forms.IntegerField(label='Element Id', min_value=0,
+      #help_text="Id of an element to be categorised."
+      #)
+      
+    title = IDTitleAutocompleteField(
+      ajax_href='/taxonomy/term_titles/29',
+      label='Element ID/Title', 
+      help_text="Title of an element to be categorised."
+      )
+
+    def __init__(self, *args, **kwargs):
+      super().__init__(*args, **kwargs)
+
+
+#http://127.0.0.1:8000/taxonomy/element/7
+def element_link(request, element_pk):
+    if request.method == 'POST':
+        # create a form instance and validate
+        f = ElementSearchForm(request.POST)
+        if (not f.is_valid()):
+            msg = "Id failed to validate?"
+            messages.add_message(request, messages.ERROR, msg)
+            # falls through to another render
+        else:
+            # do something
+            t = term(f.cleaned_data['title'])
+            msg = tmpl_instance_message("Associated Element Id {0} to Term".format(t), 'noddy')
+            messages.add_message(request, messages.SUCCESS, msg)
+            #return HttpResponseRedirect(reverse('term-list', args=[t.tree]))
+            return HttpResponseRedirect(reverse('element-link', args=[element_pk]))
+            
+    else:
+        # empty form for add
+        f = ElementSearchForm(
+          initial=dict(
+            title = 'z'
+          )
+        )
+        f.fields['title'].widget = IDTitleAutocompleteInput('/taxonomy/term_titles/1')
+    print('media')
+    print(str(f.media))
+    context={
+    'form': f,
+    'media': f.media,
+    'title': 'Add Element',
+    'navigators': [
+      link('Term List', reverse('term-list', args=[26])),
+      ],
+    'submit': {'message':"Save", 'url': reverse('element-link', args=[element_pk])},
+    'actions': [],
+    }
+    return render(request, "taxonomy/generic_form.html", context)

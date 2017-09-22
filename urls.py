@@ -3,7 +3,7 @@ from django.views.decorators.cache import never_cache
 
 #treelist_view, treeadd_view # tree_view #, TermDetailView
 from generic_view_template.views import GenericObjectView, GenericQuerySetAnchorView
-from taxonomy.views import TreeListView, TermListView
+from taxonomy.views import TreeListView, TermListView #, ElementSearchView
 from taxonomy.models import Term, Tree
 from paper.models import Paper
 from generic_view_template import rend
@@ -78,11 +78,15 @@ urlpatterns = [
   #url(r'^term/(?P<pk>[-\w]+)/$', GenericObjectView.as_view(model=Term,)),
   
   # Order is important, actions before slugs
-  url(r'^tree/(?P<tree_pk>\d+)/term/list/$', never_cache(TermListView.as_view()), name='term-list'),
-  #url(r'^term/list/$', TermListView.as_view()),
+  url(r'^element/(?P<element_pk>\d+)$', never_cache(views.element_link), name='element-link'),
+  #url(r'^element/(?P<element_pk>\d+)$', never_cache(ElementSearchView.as_view()), name='element-link'),
+  url(r'^term_titles/(?P<tree_pk>\d+)$', never_cache(views.tree_term_titles_view), name='term-titles'),
+  #url(r'^term_titles_ajax/(?P<tree_pk>\d+)$', never_cache(views.tree_term_titles_istartswith_view), name='term-titles-startswith'),
+
   url(r'^term/(?P<term_pk>\d+)/element/merge/$', never_cache(views.element_merge), name='element-merge'),
   url(r'^tree/(?P<tree_pk>\d+)/element/(?P<element_pk>\d+)/delete/$', views.element_delete, name='element-delete'),
 
+  url(r'^tree/(?P<tree_pk>\d+)/term/list/$', never_cache(TermListView.as_view()), name='term-list'),
   url(r'^term/(?P<term_pk>\d+)/edit/$', never_cache(views.term_edit), name='term-edit'),
   url(r'^term/(?P<pk>\d+)/delete/$', views.term_delete, name='term-delete'),
   url(r'^tree/(?P<tree_pk>\d+)/term/add/$', never_cache(views.term_add), name='term-add'),
