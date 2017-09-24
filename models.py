@@ -166,20 +166,20 @@ class TermManager(models.Manager):
       o.save()
       BaseTerm.system.create(base_pk, o.pk)
       TermParent.system.merge(o.pk, parent_pks)
-      return t
+      return o
   
   
     def update(self, parent_pks, term_pk, title, slug, description, weight):
-      t = Term(
+      o = Term(
         pk=term_pk,
         title=title,
         slug=slug,
         description=description,
         weight=weight
         )
-      t.save()
+      o.save()
       TermParent.system.merge(term_pk, parent_pks)
-      return t
+      return o
   
     def _delete_one(self, term_pk):
         # elems
@@ -227,7 +227,7 @@ class TermManager(models.Manager):
 
 
           
-    #?
+    #? *
     _SQLParents = "SELECT t.* FROM taxonomy_term t, taxonomy_termparent h WHERE t.id = h.parent and h.term = %s ORDER BY t.weight, t.title"
     def parents_ordered(self, term_pk):
         '''
@@ -246,6 +246,7 @@ class TermManager(models.Manager):
         return r
         
     #?
+        #? *
     _SQLChildren = "SELECT t.* FROM taxonomy_term t, taxonomy_termparent h WHERE  t.id = h.term and h.parent = %s ORDER BY t.weight, t.title"
     def children_ordered(self, pk):
         '''
@@ -348,12 +349,12 @@ class BaseTermManager(models.Manager):
       o = BaseTerm.objects.get(term__exact=term_pk)
       return o.base
     
-    _SQLTree = "SELECT * FROM taxonomy_term, taxonomy_baseterm bt WHERE bt.base = %s and id = bt.term  ORDER BY weight, title"
+    _SQLTree = "SELECT t.id, t.title, t.slug, t.description FROM taxonomy_term t, taxonomy_baseterm bt WHERE bt.base = %s and id = bt.term  ORDER BY t.weight, t.title"
     def ordered(self, base_pk):
         '''
         terms for a given base.
         The term pks are ordered by weight and title, in that order.
-        @return [term...]
+        @return [(term)...]
         '''  
         c = connection.cursor()
         try:
@@ -390,14 +391,17 @@ class BaseTerm(models.Model):
     
     
 class TermParentManager(models.Manager):
-    def merge(self, termpk, parentpks):
+    def merge(self, term_pk, parent_pks):
         '''
         Create/update parents of a term.
         @param parentpks list of parentpks
         '''
-        TermParent.objects.filter(term__exact=termpk).delete()
-        TermParent.objects.bulk_create([TermParent(term=termpk, parent=p) for p in parentpks])
-          
+        TermParent.objects.filter(term__exact=term_pk).delete()
+        if (isinstance(parent_pks, list)):
+            TermParent.objects.bulk_create([TermParent(term=term_pk, parent=p) for p in parent_pks])
+        else:
+            TermParent(term=term_pk, parent=parent_pks).save()
+            
     _SQLTermParentage = "SELECT h.term, h.parent FROM taxonomy_termparent h, taxonomy_term t, taxonomy_baseterm bt WHERE bt.base = %s and bt.term = h.term and t.id = h.term ORDER BY t.weight, t.title"
     #? not sure if this functional approach is best for Python,
     # but code is where it should be (could return a list...)
@@ -415,6 +419,7 @@ class TermParentManager(models.Manager):
             func(e)
 
     #! probably not fast, but unimportant?
+        #? *
     _SQLByBase = "SELECT h.* FROM taxonomy_termparent h, taxonomy_term t WHERE t.tree = %s and t.id = h.term"
     def multiple_to_single(self, base_pk):
           '''
@@ -519,6 +524,7 @@ class ElementManager(models.Manager):
         Element.objects.filter(term__in=all_term_pks, elem__in=element_pks).delete()
   
     #? any need to order here?
+    #? *
     _SQLElementTerms = "SELECT t.* FROM taxonomy_term t, taxonomy_element te WHERE t.id = te.term and te.tree = %s and te.elem = %s ORDER BY t.weight, t.title"
     def terms(self, base_pk, element_pk): 
         '''

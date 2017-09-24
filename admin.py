@@ -5,7 +5,7 @@ from django import forms
 # Register your models here.
 
 
-from .models import Term, Base, TermParent, Element
+from .models import Term, Base, TermParent, BaseTerm, Element
 
 
 #class TaxonomySelectField(forms.ChoiceField):
@@ -166,6 +166,8 @@ class TaxonomyAdmin(admin.ModelAdmin):
         
 admin.site.register(Base, TaxonomyAdmin)
 
+
+admin.site.register(BaseTerm)
 
 #####################################################
 

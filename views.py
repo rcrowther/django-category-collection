@@ -135,10 +135,7 @@ def _assert_cache(base_pk):
     
           # populate term data
           xt = BaseTerm.system.ordered(base_pk)
-          this._term_data_cache[base_pk] = {
-              t.pk : TermTData(t.pk, t.title, t.slug, t.description) 
-              for t in xt
-              }
+          this._term_data_cache[base_pk] = {t[0] : TermTData(t[0], t[1], t[2], t[3]) for t in xt}
           return True
     
 # why the parents? because we can, or is there some use?
@@ -163,7 +160,7 @@ def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
     parentpk = int(parent_pk)
 
     # cache available?
-    if (not  _assert_cache(treepk)):
+    if (not _assert_cache(treepk)):
         return None
 
     tree = []
@@ -434,40 +431,46 @@ def term_ancestor_data(base_pk, term_pk):
         return b
   
 
-def term_ancestor_pks(term):
+def term_ancestor_pks(term_pk):
     '''
     Term ancestor pks.
     @return set of ancestor term pks
     '''
-    _assert_cache(term.tree)
-    cc = this._parent_cache[term.tree]
+    bpk = BaseTerm.system.base(term_pk)
+    _assert_cache(bpk)
+    cc = this._parent_cache[bpk]
     b = set()
-    stack = list(cc[term.pk])
-    while (stack):
-        tpk = stack.pop()
-        if (tpk != TermParent.NO_PARENT):
-            parents = cc[tpk]
-            for parent in parents:
-                stack.append(parent)
-            b.add(tpk)
+    base = cc.get(term_pk)
+    if (base):
+        stack = list(cc[term.pk])
+        while (stack):
+            tpk = stack.pop()
+            if (tpk != TermParent.NO_PARENT):
+                parents = cc[tpk]
+                for parent in parents:
+                    stack.append(parent)
+                b.add(tpk)
     return b
     
-def term_descendant_pks(term):
+def term_descendant_pks(term_pk):
     '''
     Term descendant pks.
     @return set of descendant term pks
     '''
-    _assert_cache(term.tree)
-    cc = this._child_cache[term.tree]
+    bpk = BaseTerm.system.base(term_pk)
+    _assert_cache(bpk)
+    cc = this._child_cache[bpk]
     b = set()
-    stack = list(cc.get(term.pk))
-    while (stack):
-        tpk = stack.pop()
-        children = cc.get(tpk)
-        if (children):
-            for child in children:
-                stack.append(child)
-        b.add(tpk)
+    base = cc.get(term_pk)
+    if (base):
+        stack = list(base)
+        while (stack):
+            tpk = stack.pop()
+            children = cc.get(tpk)
+            if (children):
+                for child in children:
+                    stack.append(child)
+            b.add(tpk)
     return b
 
 def base_pks(base_pk):
@@ -599,13 +602,10 @@ def term_exclusive_select(term):
     '''
     # This value is mainly for the elimination of child selections when
     # choosing terms (to avoid circular dependencies)
-    dpks = term_descendant_pks(term)
+    dpks = term_descendant_pks(term.pk)
     dpks.add(term.pk)
-    #pks = base_pks(term.tree)
-    #pks.difference_update(dpks)
-    #return [(pk, this._term_data_cache[term.tree][pk][1]) for pk in pks]
-    ftree = terms_flat_tree(term.tree)
-    #title = '\u00A0' * (td.depth*2)  + td.title 
+    bpk = BaseTerm.system.base(term.pk)
+    ftree = terms_flat_tree(bpk)
     return [(t.pk, ('-' *t.depth) + t.title) for t in ftree if (t.pk not in dpks)]
 
 from django.forms import TypedChoiceField, TypedMultipleChoiceField
@@ -696,6 +696,7 @@ def tree_select_titles(base_pk):
     return b
 
 #-
+# used someplace?
 def tree_term_select_titles(term_pk):
     '''
     Ancestor titles from a tree.
@@ -707,7 +708,7 @@ def tree_term_select_titles(term_pk):
     '''
     # coercion needed for the test below
     pk = int(term_pk)
-    base_pk = term(pk).tree
+    base_pk = BaseTerm.system.term(pk).tree
     
     # assert a root item
     b = [(TermParent.NO_PARENT, '<root>')]
@@ -1000,7 +1001,7 @@ class TermForm(forms.Form):
       )
       
     #! how big is the field?
-    tree = forms.IntegerField(min_value=0, widget=forms.HiddenInput())
+    base = forms.IntegerField(min_value=0, widget=forms.HiddenInput())
     
     title = forms.CharField(label='Title', max_length=64,
       help_text="Name for the category. Limited to 255 characters."
@@ -1021,7 +1022,7 @@ class TermForm(forms.Form):
     def __init__(self, *args, **kwargs):
       super().__init__(*args, **kwargs)
       
-      base_pk = kwargs['initial']['tree']
+      base_pk = kwargs['initial']['base']
       tree_model = tree(base_pk)
       
       # set form field type
@@ -1034,7 +1035,8 @@ class TermForm(forms.Form):
       pk = kwargs['initial'].get('pk')
       if(pk is not None):
           # update form. Targeted choices
-          self.fields['parents'].choices = tree_term_select_titles(pk)
+          #self.fields['parents'].choices = tree_term_select_titles(pk)
+          self.fields['parents'].choices = term_exclusive_select(term(pk))
       else:
           # create form. All choices.
           self.fields['parents'].choices = tree_select_titles(base_pk) 
@@ -1042,37 +1044,36 @@ class TermForm(forms.Form):
           
   
 def term_add(request, base_pk):
-    # check the treepk exists
-    tm = tree(base_pk)
-    if (tm == None):
-        msg = "Base with ID '{0}' doesn't exist.".format(tm.pk)
+    b = tree(base_pk)
+    if (b == None):
+        msg = "Base with ID '{0}' doesn't exist.".format(b.pk)
         messages.add_message(request, messages.WARNING, msg) 
-        return HttpResponseRedirect(reverse('term-list', args=[tm.pk]))
+        return HttpResponseRedirect(reverse('term-list', args=[b.pk]))
 
     if request.method == 'POST':
         # submitted data, populate
         f = TermForm(request.POST,
             initial=dict(
-                      tree = tm.pk,
+                      base = b.pk,
                       )
             )
 
         ## check whether it's valid:
         if f.is_valid():
             t = Term.system.create(
-                treepk= f.cleaned_data['tree'], 
-                parents=f.cleaned_data['parents'],
+                base_pk=f.cleaned_data['base'], 
+                parent_pks=f.cleaned_data['parents'],
                 title=f.cleaned_data['title'], 
                 slug=f.cleaned_data['slug'], 
                 description=f.cleaned_data['description'], 
                 weight=f.cleaned_data['weight']
                 ) 
-                
-            cache_clear_flat_tree(t.tree)
+            
+            cache_clear_flat_tree(b.pk)
           
             msg = tmpl_instance_message("Created new Term", t.title)
             messages.add_message(request, messages.SUCCESS, msg)
-            return HttpResponseRedirect(reverse('term-list', args=[t.tree]))
+            return HttpResponseRedirect(reverse('term-list', args=[b.pk]))
             
         else:
             msg = "Please correct the errors below."
@@ -1082,7 +1083,7 @@ def term_add(request, base_pk):
     else:
         # empty form for add
         f = TermForm(initial=dict(
-          tree = tm.pk,
+          base = b.pk,
           weight = 0,
           # set parents to the root (always exists, as an option) 
           parents = [TermParent.NO_PARENT],
@@ -1092,9 +1093,9 @@ def term_add(request, base_pk):
     'form': f,
     'title': 'Add Term',
     'navigators': [
-      link('Term List', reverse('term-list', args=[tm.pk])),
+      link('Term List', reverse('term-list', args=[b.pk])),
       ],
-    'submit': {'message':"Save", 'url': reverse('term-add', args=[tm.pk])},
+    'submit': {'message':"Save", 'url': reverse('term-add', args=[b.pk])},
     'actions': [],
     }    
 
@@ -1111,12 +1112,12 @@ def term_edit(request, term_pk):
         # must be base-list, no tree id to work with 
         return HttpResponseRedirect(reverse('base-list'))
             
+    b = BaseTerm.system.base(term_pk)
             
     if request.method == 'POST':
-        # create a form instance and validate
         f = TermForm(request.POST,
             initial=dict(
-              tree = tm.tree
+              base = b
               )
         )
 
@@ -1134,25 +1135,25 @@ def term_edit(request, term_pk):
             #if (f.fields['treepk'].has_changed()):
             #! handle mutiple            
             t = Term.system.update(
-                treepk=f.cleaned_data['tree'], 
-                parents=f.cleaned_data['parents'], 
-                pk=tm.pk, 
+                #treepk=f.cleaned_data['base'], 
+                parent_pks=f.cleaned_data['parents'], 
+                term_pk=tm.pk, 
                 title=f.cleaned_data['title'], 
                 slug=f.cleaned_data['slug'], 
                 description=f.cleaned_data['description'], 
                 weight=f.cleaned_data['weight']
                 ) 
             
-            cache_clear_flat_tree(t.tree)
+            cache_clear_flat_tree(b)
 
             msg = tmpl_instance_message("Updated Term", t.title)
             messages.add_message(request, messages.SUCCESS, msg)
-            return HttpResponseRedirect(reverse('term-list', args=[t.tree]))
+            return HttpResponseRedirect(reverse('term-list', args=[b]))
             
     else:
         # requested update form
         initial = dict(
-            tree=tm.tree,
+            base=b,
             # this field triggers modified parent widgets
             pk=tm.pk,
             title=tm.title,
@@ -1161,7 +1162,7 @@ def term_edit(request, term_pk):
             weight=tm.weight
           )
         # add in the non-model treepk field inits
-        initial['parents'] = term_parent_data(tm.tree, tm.pk)
+        initial['parents'] = term_parent_data(b, tm.pk)
         f = TermForm(initial=initial)
 
     context={
@@ -1169,7 +1170,7 @@ def term_edit(request, term_pk):
     'title': tmpl_instance_message('Edit term', tm.title),
     'navigators': [
       link('Base List', reverse('base-list')),
-      link('Term List', reverse('term-list', args=[tm.tree]))
+      link('Term List', reverse('term-list', args=[b]))
       ],
     'submit': {'message':"Save", 'url': reverse('term-edit', args=[tm.pk])},
     'actions': [link('Delete', reverse("term-delete", args=[tm.pk]), attrs={'class':'"button alert"'})],
@@ -1187,13 +1188,14 @@ def _term_delete(request, term_pk):
         )
         messages.add_message(request, messages.WARNING, msg) 
         return HttpResponseRedirect(reverse('base-list'))
-        
+      b = BaseTerm.system.base(tm.pk)
+      
       if (request.method == 'POST'):
           Term.system.delete(tm.pk)
-          cache_clear_flat_tree(tm.tree)
+          cache_clear_flat_tree(b)
           msg = tmpl_instance_message("Deleted Term", tm.title)
           messages.add_message(request, messages.SUCCESS, msg)
-          return HttpResponseRedirect(reverse('term-list', args=[tm.tree]))
+          return HttpResponseRedirect(reverse('term-list', args=[b]))
       else:
           message = '<p>Are you sure you want to delete the Term "{0}"?</p><p>Deleting a term will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a term will not delete elements attached to the term)</p>'.format(
             html.escape(tm.title)
