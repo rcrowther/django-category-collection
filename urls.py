@@ -69,23 +69,23 @@ urlpatterns = [
   # Order is important, actions before slugs
   url(r'^element/(?P<element_pk>\d+)$', never_cache(views.element_link), name='element-link'),
   #url(r'^element/(?P<element_pk>\d+)$', never_cache(ElementSearchView.as_view()), name='element-link'),
-  url(r'^term_titles/(?P<tree_pk>\d+)$', never_cache(views.term_title_search_view), name='term-titles'),
-  #url(r'^term_titles_ajax/(?P<tree_pk>\d+)$', never_cache(views.term_title_search_istartswith_view), name='term-titles-startswith'),
+  url(r'^term_titles/(?P<base_pk>\d+)$', never_cache(views.term_title_search_view), name='term-titles'),
+  #url(r'^term_titles_ajax/(?P<base_pk>\d+)$', never_cache(views.term_title_search_istartswith_view), name='term-titles-startswith'),
 
   url(r'^term/(?P<term_pk>\d+)/element/merge/$', never_cache(views.element_merge), name='element-merge'),
-  url(r'^base/(?P<tree_pk>\d+)/element/(?P<element_pk>\d+)/delete/$', views.element_delete, name='element-delete'),
+  url(r'^base/(?P<base_pk>\d+)/element/(?P<element_pk>\d+)/delete/$', views.element_delete, name='element-delete'),
 
-  url(r'^base/(?P<tree_pk>\d+)/term/list/$', never_cache(TermListView.as_view()), name='term-list'),
+  url(r'^base/(?P<base_pk>\d+)/term/list/$', never_cache(TermListView.as_view()), name='term-list'),
   url(r'^term/(?P<term_pk>\d+)/edit/$', never_cache(views.term_edit), name='term-edit'),
   url(r'^term/(?P<pk>\d+)/delete/$', views.term_delete, name='term-delete'),
-  url(r'^base/(?P<tree_pk>\d+)/term/add/$', never_cache(views.term_add), name='term-add'),
+  url(r'^base/(?P<base_pk>\d+)/term/add/$', never_cache(views.term_add), name='term-add'),
   url(r'^term/(?P<pk>\d+)/$', GenericObjectView.as_view(model=Term,), name='term-preview'),
   url(r'^term/(?P<slug>[-\w]+)/$', GenericObjectView.as_view(model=Term,), name='term-detail'),
 
   url(r'^base/list/$',  never_cache(BaseListView.as_view()), name='base-list'),
-  url(r'^base/(?P<tree_pk>\d+)/edit/$', never_cache(views.tree_edit), name='base-edit'),
-  url(r'^base/(?P<tree_pk>\d+)/delete/$', views.tree_delete, name='base-delete'),
-  url(r'^base/(?P<tree_pk>\d+)/tosingleparent/$', views.tree_tosingleparent, name='base-tosingleparent'),
+  url(r'^base/(?P<base_pk>\d+)/edit/$', never_cache(views.tree_edit), name='base-edit'),
+  url(r'^base/(?P<base_pk>\d+)/delete/$', views.tree_delete, name='base-delete'),
+  url(r'^base/(?P<base_pk>\d+)/tosingleparent/$', views.tree_tosingleparent, name='base-tosingleparent'),
   url(r'^base/add/$', never_cache(views.tree_add), name='base-add'),
   url(r'^base/(?P<slug>[-\w]+)/$', GenericObjectView.as_view(model=Base,), name='base-detail'),
 

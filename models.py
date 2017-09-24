@@ -64,6 +64,15 @@ class BaseManager(models.Manager):
         # tree
         Base.objects.get(pk__exact=base_pk).delete() 
            
+    def ordered(self):
+        '''
+        All base objects, ordered.
+        Ordered by weight and title, in that order.
+        @return [base...]
+        '''  
+        return Base.objects.order_by('weight', 'title').all()
+
+        
     _SQLIsSingle = "UPDATE taxonomy_base SET is_single=%s  WHERE id = %s"
     def is_single(self, base_pk, is_single):
         '''
@@ -200,9 +209,27 @@ class TermManager(models.Manager):
                   
         self._delete_one(tpk)
   
+
+    _SQLTreePK = "SELECT id FROM taxonomy_term t, taxonomy_baseterm bt WHERE t.id = bt.term and bt.base = %s ORDER BY t.weight, t.title"
+    def term_pks_ordered(self, base_pk):
+        '''
+        pks for a given base.
+        The term pks are ordered by weight and title, in that order.
+        @return [term_pk...]
+        '''      
+        c = connection.cursor()
+        try:
+            c.execute(self._SQLTreePK, [base_pk])
+            r = [e for e in c.fetchall()]
+        finally:
+            c.close()
+        return r
+
+
+          
+    #?
     _SQLParents = "SELECT t.* FROM taxonomy_term t, taxonomy_termparent h WHERE t.id = h.parent and h.term = %s ORDER BY t.weight, t.title"
-    def parents_ordered(self, pk):
-        #'SELECT t.tid, t.* FROM {term_data} t INNER JOIN {term_hierarchy} h ON h.parent = t.tid WHERE h.tid = %d ORDER BY weight, name', 't', 'tid'), $tid);
+    def parents_ordered(self, term_pk):
         '''
         Parent/term pks for a given tree.
         The term pks are ordered by weight and title, in that order.
@@ -212,12 +239,13 @@ class TermManager(models.Manager):
         '''
         c = connection.cursor()
         try:
-            c.execute(self._SQLParents, [pk])
+            c.execute(self._SQLParents, [term_pk])
             r = [e for e in c.fetchall()]
         finally:
             c.close()
         return r
-  
+        
+    #?
     _SQLChildren = "SELECT t.* FROM taxonomy_term t, taxonomy_termparent h WHERE  t.id = h.term and h.parent = %s ORDER BY t.weight, t.title"
     def children_ordered(self, pk):
         '''
@@ -313,15 +341,32 @@ class BaseTermManager(models.Manager):
     def delete(self, term_pk):
       BaseTerm.objects.filter(term__exact=term_pk).delete()
 
-    def terms(base_pk):
+    def term_pks(self, base_pk):
       return BaseTerm.objects.filter(base__exact=base_pk).value_list('term', flat=True)
     
-    def base(term_pk):
+    def base(self, term_pk):
       o = BaseTerm.objects.get(term__exact=term_pk)
       return o.base
     
-    
-    
+    _SQLTree = "SELECT * FROM taxonomy_term, taxonomy_baseterm bt WHERE bt.base = %s and id = bt.term  ORDER BY weight, title"
+    def ordered(self, base_pk):
+        '''
+        terms for a given base.
+        The term pks are ordered by weight and title, in that order.
+        @return [term...]
+        '''  
+        c = connection.cursor()
+        try:
+            c.execute(self._SQLTree, [base_pk])
+            r = [e for e in c.fetchall()]
+        finally:
+            c.close()
+        return r    
+
+
+        
+    #def search(self, base_pk):
+      
 class BaseTerm(models.Model):      
     base = models.IntegerField(
       db_index=True,
@@ -353,24 +398,25 @@ class TermParentManager(models.Manager):
         TermParent.objects.filter(term__exact=termpk).delete()
         TermParent.objects.bulk_create([TermParent(term=termpk, parent=p) for p in parentpks])
           
-    _SQLTermParentage = "SELECT h.term, h.parent FROM taxonomy_termparent h, taxonomy_term t WHERE t.tree = %s and t.id = h.term ORDER BY t.weight, t.title"
+    _SQLTermParentage = "SELECT h.term, h.parent FROM taxonomy_termparent h, taxonomy_term t, taxonomy_baseterm bt WHERE bt.base = %s and bt.term = h.term and t.id = h.term ORDER BY t.weight, t.title"
     #? not sure if this functional approach is best for Python,
     # but code is where it should be (could return a list...)
-    def foreach_ordered(self, tree_pk, func):
+    def foreach_ordered(self, base_pk, func):
       '''
       Parent/term pks for a given tree.
       The term pks are ordered by weight and title, in that order.
       
       @param func (term_id, parent_id) as raw fetchall.
-      '''
+      '''      
+      # order by term
       with connection.cursor() as c:
-          c.execute(self._SQLTermParentage, [tree_pk])
+          c.execute(self._SQLTermParentage, [base_pk])
           for e in c.fetchall():
             func(e)
 
     #! probably not fast, but unimportant?
     _SQLByBase = "SELECT h.* FROM taxonomy_termparent h, taxonomy_term t WHERE t.tree = %s and t.id = h.term"
-    def multiple_to_single(self, tree_pk):
+    def multiple_to_single(self, base_pk):
           '''
           Turn a multiparent tree into a single parent tree.
           This is done by removing duplicate parents. Only the first
@@ -385,7 +431,7 @@ class TermParentManager(models.Manager):
           c = connection.cursor()
           qs = None
           try:
-              c.execute(self._SQLByBase, [tree_pk])
+              c.execute(self._SQLByBase, [base_pk])
               qs = list(c.fetchall())
           finally:
               c.close()
@@ -487,7 +533,7 @@ class ElementManager(models.Manager):
         tpks = Element.objects.filter(tree__exact=base_pk, elem__exact=element_pk).values_list('term', flat=True)
         return Term.objects.filter(pk__in=tpks)
         #try:
-            #c.execute(self._SQLElementTerms, [tree_pk, element_pk])
+            #c.execute(self._SQLElementTerms, [base_pk, element_pk])
             #r = [e for e in c.fetchall()]
         #finally:
             #c.close()

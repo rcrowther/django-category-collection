@@ -62,20 +62,20 @@ class IDTitleAutocompleteField(IntegerField):
     #The one and only outstanding feature is that the Field requires a
     #tree ID to filter terms offered. This property is set on 
     #contained widgets (which must enable the property).
-    #@param tree_pk tree to offer terms from 
+    #@param base_pk tree to offer terms from 
     #'''
-    #def __init__(self, tree_pk, *args, **kwargs):
+    #def __init__(self, base_pk, *args, **kwargs):
         #super().__init__(*args, coerce=lambda val: int(val), **kwargs)
-        #self.tree_pk = tree_pk
+        #self.base_pk = base_pk
         
-    #def _get_tree_pk(self):
-        #return self._tree_pk
+    #def _get_base_pk(self):
+        #return self._base_pk
 
-    #def _set_tree_pk(self, value):
+    #def _set_base_pk(self, value):
         ## Setting ajax_href also sets the ajax_href on the widget.
-        #self._tree_pk = self.widget.tree_pk = value
+        #self._base_pk = self.widget.base_pk = value
 
-    #tree_pk = property(_get_tree_pk, _set_tree_pk)
+    #base_pk = property(_get_base_pk, _set_base_pk)
 
 
 #class TaxonomySingleTermField(forms.TypedChoiceField):
@@ -83,8 +83,8 @@ class IDTitleAutocompleteField(IntegerField):
     #A field which only accepts
     #A lightly customized field for vali
     #'''
-    #def __init__(self, tree_pk, *args, **kwargs):
-        #super().__init__(choices=partial(term_list, tree_pk), *args, coerce=lambda val: int(val), empty_value=-1, **kwargs)
+    #def __init__(self, base_pk, *args, **kwargs):
+        #super().__init__(choices=partial(term_list, base_pk), *args, coerce=lambda val: int(val), empty_value=-1, **kwargs)
 
     #def valid_value(self, value):
         #print('valid value')
