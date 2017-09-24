@@ -5,7 +5,7 @@ from django import forms
 # Register your models here.
 
 
-from .models import Term, Tree, TermParent, TermNode
+from .models import Term, Base, TermParent, Element
 
 
 #class TaxonomySelectField(forms.ChoiceField):
@@ -23,7 +23,7 @@ class TaxonomySelectField(forms.ModelChoiceField):
   
   def __init__(self, level_indicator='-', *args, **kwargs):
     self.level_indicator = level_indicator
-    super(TaxonomySelectField, self).__init__(queryset=Tree.objects.all())
+    super(TaxonomySelectField, self).__init__(queryset=Base.objects.all())
 
   def label_from_instance(self, obj):
     """
@@ -43,7 +43,7 @@ class TaxonomySelectField(forms.ModelChoiceField):
   
   #def __init__(self, tree_id, init_term_id, *args, **kwargs):
     ##! personally, I think this is cobbled. Go to SQL join?
-    #term_ids = TermTree.objects.filter(tree__exact=tree_id).values_list('term', flat=True)
+    #term_ids = TermBase.objects.filter(tree__exact=tree_id).values_list('term', flat=True)
     ##print('Term ids:')
     ##print(str(term_ids))
     #super().__init__(initial=init_term_id, queryset=Term.objects.filter(pk__in=list(term_ids)))
@@ -62,7 +62,7 @@ class AllTermSelectField(forms.ModelChoiceField):
   def __init__(self, *args, **kwargs):
     #! personally, I think this is cobbled. Go to SQL join?
     #root_terms = TermParent.objects.filter(parent__null=True)
-    #term_ids = TermTree.objects.filter(taxonomy__exact=taxonomy_id).values_list('term', flat=True)
+    #term_ids = TermBase.objects.filter(taxonomy__exact=taxonomy_id).values_list('term', flat=True)
     #print('Term ids:')
     #print(str(term_ids))
     super().__init__(queryset=Term.objects.all())
@@ -116,8 +116,8 @@ class AllTermSelectField(forms.ModelChoiceField):
 
     ##Select
     ##if (not change):
-    ##TermTree(term=obj.id, taxonomy=obj.taxonomy)
-    ##model = TermTree(term=obj.id, taxonomy=obj.taxonomy)  
+    ##TermBase(term=obj.id, taxonomy=obj.taxonomy)
+    ##model = TermBase(term=obj.id, taxonomy=obj.taxonomy)  
     ##model.save()
     
     #print('saving model:')  
@@ -164,7 +164,7 @@ class TaxonomyAdmin(admin.ModelAdmin):
         #)
         #return TemplateResponse(request, "sometemplate.html", context)
         
-admin.site.register(Tree, TaxonomyAdmin)
+admin.site.register(Base, TaxonomyAdmin)
 
 
 #####################################################
@@ -192,7 +192,7 @@ admin.site.register(TermParent)
   #term = AllTermSelectField()
   
   #class Meta:
-    #model=TermTree
+    #model=TermBase
     #fields = ['tree', 'term']
 
 #class TermTaxonomyAdmin(admin.ModelAdmin):
@@ -206,8 +206,8 @@ admin.site.register(TermParent)
  ##           kwargs['form'] = MySuperuserForm
  ##       return super(MyModelAdmin, self).get_form(request, obj, **kwargs)
   
-#admin.site.register(TermTree, TermTaxonomyAdmin)
+#admin.site.register(TermBase, TermTaxonomyAdmin)
 
 ########################################
 
-admin.site.register(TermNode)
+admin.site.register(Element)

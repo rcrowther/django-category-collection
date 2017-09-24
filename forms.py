@@ -1,5 +1,8 @@
 from django import forms
 
+from django.core.exceptions import ImproperlyConfigured
+from .fields import IDTitleAutocompleteField
+from .widgets import IDTitleAutocompleteInput
 
 
 class ElementForm(forms.Form):
@@ -29,7 +32,7 @@ class ElementForm(forms.Form):
 def modelform_factory(model, treepk, toLabel=None):
     '''
     Returns a simple form suitable for registering model instances as
-    elements in ataxonomy.
+    elements in a taxonomy.
     '''
     # get the id
     pk_name = model._meta.pk.name
@@ -37,3 +40,16 @@ def modelform_factory(model, treepk, toLabel=None):
     return  ModelTreeForm(treepk)
 ###
 
+class ElementSearchForm(forms.Form):
+    #pk = forms.IntegerField(label='Element Id', min_value=0,
+      #help_text="Id of an element to be categorised."
+      #)
+      
+    title = IDTitleAutocompleteField(
+      ajax_href='/taxonomy/term_titles/29',
+      label='Element ID/Title', 
+      help_text="Title of an element to be categorised."
+      )
+
+    def __init__(self, tree_pk, *args, **kwargs):
+      super().__init__(*args, **kwargs)

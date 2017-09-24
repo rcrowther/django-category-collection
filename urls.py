@@ -3,8 +3,8 @@ from django.views.decorators.cache import never_cache
 
 #treelist_view, treeadd_view # tree_view #, TermDetailView
 from generic_view_template.views import GenericObjectView, GenericQuerySetAnchorView
-from taxonomy.views import TreeListView, TermListView #, ElementSearchView
-from taxonomy.models import Term, Tree
+from taxonomy.views import BaseListView, TermListView #, ElementSearchView
+from taxonomy.models import Term, Base
 from generic_view_template import rend
 
 from . import views
@@ -13,16 +13,6 @@ urlpatterns = [
   #? Not working as generic view?
   #url(r'^taxonomies/$', TaxonomyList.as_view(), name='taxonomy-list'),
   
-  #url(r'^$', treelist_view),
-  #url(r'^add/$', treeadd_view),
-  #url(r'^(?P<slug>[-\w]+)/change/$', treechange_view),
-  #url(r'^$', taxonomy_list, name='taxonomy-list'),
-  #url(r'^tree/$', taxonomy_list, name='taxonomy-list'),
-  #url(r'^tree/(?P<slug>[-\w]+)/$', tree_view, name='term-detail'),
-  #url(r'^term/$', term_list, name='term-detail'),
-  #url(r'^term/(?P<slug>[-\w]+)/$', TermDetailView.as_view(), name='term-detail'),
-  #url(r'^term/(?P<slug>[-\w]+)/$', GenericObjectView.as_view(model=Term), name='term-detail'),
-
   #'admin/content/taxonomy' 
   # taxonomies list with CUD buttons
   # /admin/taxonomy/ -> an *all models* choose list
@@ -79,27 +69,27 @@ urlpatterns = [
   # Order is important, actions before slugs
   url(r'^element/(?P<element_pk>\d+)$', never_cache(views.element_link), name='element-link'),
   #url(r'^element/(?P<element_pk>\d+)$', never_cache(ElementSearchView.as_view()), name='element-link'),
-  url(r'^term_titles/(?P<tree_pk>\d+)$', never_cache(views.tree_term_titles_view), name='term-titles'),
-  #url(r'^term_titles_ajax/(?P<tree_pk>\d+)$', never_cache(views.tree_term_titles_istartswith_view), name='term-titles-startswith'),
+  url(r'^term_titles/(?P<tree_pk>\d+)$', never_cache(views.term_title_search_view), name='term-titles'),
+  #url(r'^term_titles_ajax/(?P<tree_pk>\d+)$', never_cache(views.term_title_search_istartswith_view), name='term-titles-startswith'),
 
   url(r'^term/(?P<term_pk>\d+)/element/merge/$', never_cache(views.element_merge), name='element-merge'),
-  url(r'^tree/(?P<tree_pk>\d+)/element/(?P<element_pk>\d+)/delete/$', views.element_delete, name='element-delete'),
+  url(r'^base/(?P<tree_pk>\d+)/element/(?P<element_pk>\d+)/delete/$', views.element_delete, name='element-delete'),
 
-  url(r'^tree/(?P<tree_pk>\d+)/term/list/$', never_cache(TermListView.as_view()), name='term-list'),
+  url(r'^base/(?P<tree_pk>\d+)/term/list/$', never_cache(TermListView.as_view()), name='term-list'),
   url(r'^term/(?P<term_pk>\d+)/edit/$', never_cache(views.term_edit), name='term-edit'),
   url(r'^term/(?P<pk>\d+)/delete/$', views.term_delete, name='term-delete'),
-  url(r'^tree/(?P<tree_pk>\d+)/term/add/$', never_cache(views.term_add), name='term-add'),
+  url(r'^base/(?P<tree_pk>\d+)/term/add/$', never_cache(views.term_add), name='term-add'),
   url(r'^term/(?P<pk>\d+)/$', GenericObjectView.as_view(model=Term,), name='term-preview'),
   url(r'^term/(?P<slug>[-\w]+)/$', GenericObjectView.as_view(model=Term,), name='term-detail'),
 
-  url(r'^tree/list/$',  never_cache(TreeListView.as_view()), name='tree-list'),
-  url(r'^tree/(?P<tree_pk>\d+)/edit/$', never_cache(views.tree_edit), name='tree-edit'),
-  url(r'^tree/(?P<tree_pk>\d+)/delete/$', views.tree_delete, name='tree-delete'),
-  url(r'^tree/(?P<tree_pk>\d+)/tosingleparent/$', views.tree_tosingleparent, name='tree-tosingleparent'),
-  url(r'^tree/add/$', never_cache(views.tree_add), name='tree-add'),
-  url(r'^tree/(?P<slug>[-\w]+)/$', GenericObjectView.as_view(model=Tree,), name='tree-detail'),
+  url(r'^base/list/$',  never_cache(BaseListView.as_view()), name='base-list'),
+  url(r'^base/(?P<tree_pk>\d+)/edit/$', never_cache(views.tree_edit), name='base-edit'),
+  url(r'^base/(?P<tree_pk>\d+)/delete/$', views.tree_delete, name='base-delete'),
+  url(r'^base/(?P<tree_pk>\d+)/tosingleparent/$', views.tree_tosingleparent, name='base-tosingleparent'),
+  url(r'^base/add/$', never_cache(views.tree_add), name='base-add'),
+  url(r'^base/(?P<slug>[-\w]+)/$', GenericObjectView.as_view(model=Base,), name='base-detail'),
 
-  url(r'^$', never_cache(TreeListView.as_view()), name='tree-list'),
+  url(r'^$', never_cache(BaseListView.as_view()), name='base-list'),
 
 
   #url(r'^article/(?P<pk>[-\w]+)/$', GenericObjectView.as_view(model=Paper, renderers={'image': rend.empty, 'mini_image_url': rend.as_image })),

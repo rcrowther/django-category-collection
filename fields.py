@@ -1,7 +1,7 @@
 import re
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _, ngettext_lazy
-from django.forms import IntegerField, TypedMultipleChoiceField
+from django.forms import IntegerField, TypedChoiceField, TypedMultipleChoiceField
 from .widgets import IDTitleAutocompleteInput
 
 
@@ -89,3 +89,17 @@ class IDTitleAutocompleteField(IntegerField):
     #def valid_value(self, value):
         #print('valid value')
         #super().valid_value(value) 
+
+class TaxonomyTermField(TypedMultipleChoiceField):
+    '''
+    A field to establish element connections to a term in a taxonomy.
+    Light adaption establishes a few defaults.
+    '''
+    empty_value = -1
+    required = False
+    label='Taxonomy',
+    help_text="Choose a term to parent this item"
+    def __init__(self, *args, **kwargs):
+        #super().__init__(*args, coerce=lambda val: [int(v) for v in val], **kwargs)
+        super().__init__(*args, coerce=lambda val: val, **kwargs)
+
