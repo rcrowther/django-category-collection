@@ -46,21 +46,15 @@ class BaseManager(models.Manager):
         @param parents an array of pk
         '''
         # term data
-        #all_term_pks = list(Term.objects.filter(tree__exact=pk).values_list('pk', flat=True))
         all_term_pks = list(BaseTerm.objects.filter(base__exact=base_pk).values_list('term', flat=True))
-    
         # elems
         Element.objects.filter(term__in=all_term_pks).delete()
-  
         # hierarchy
         TermParent.objects.filter(term__in=all_term_pks).delete()
-  
         # term bases
         BaseTerm.objects.filter(term__in=all_term_pks).delete()
-                    
         # terms
         Term.objects.filter(pk__in=all_term_pks).delete()
-    
         # tree
         Base.objects.get(pk__exact=base_pk).delete() 
            
@@ -213,7 +207,7 @@ class TermManager(models.Manager):
     _SQLTreePK = "SELECT id FROM taxonomy_term t, taxonomy_baseterm bt WHERE t.id = bt.term and bt.base = %s ORDER BY t.weight, t.title"
     def term_pks_ordered(self, base_pk):
         '''
-        pks for a given base.
+        Term pks for a given base.
         The term pks are ordered by weight and title, in that order.
         @return [term_pk...]
         '''      
@@ -227,11 +221,11 @@ class TermManager(models.Manager):
 
 
           
-    #? *
-    _SQLParents = "SELECT t.* FROM taxonomy_term t, taxonomy_termparent h WHERE t.id = h.parent and h.term = %s ORDER BY t.weight, t.title"
+    #- usused, should not be here?
+    _SQLParents = "SELECT t.id, t.title, t.slug, t.description FROM taxonomy_term t, taxonomy_termparent h WHERE t.id = h.parent and h.term = %s ORDER BY t.weight, t.title"
     def parents_ordered(self, term_pk):
         '''
-        Parent/term pks for a given tree.
+        Parent term data for a given tree.
         The term pks are ordered by weight and title, in that order.
         NB: raw SQL query
         
@@ -245,12 +239,11 @@ class TermManager(models.Manager):
             c.close()
         return r
         
-    #?
-        #? *
-    _SQLChildren = "SELECT t.* FROM taxonomy_term t, taxonomy_termparent h WHERE  t.id = h.term and h.parent = %s ORDER BY t.weight, t.title"
+    #- usused, should not be here?
+    _SQLChildren = "SELECT t.id, t.title, t.slug, t.description FROM taxonomy_term t, taxonomy_termparent h WHERE  t.id = h.term and h.parent = %s ORDER BY t.weight, t.title"
     def children_ordered(self, pk):
         '''
-        Parent/term pks for a given tree.
+        child term data for a given tree.
         The term pks are ordered by weight and title, in that order.
         NB: raw SQL query
         
@@ -343,7 +336,7 @@ class BaseTermManager(models.Manager):
       BaseTerm.objects.filter(term__exact=term_pk).delete()
 
     def term_pks(self, base_pk):
-      return BaseTerm.objects.filter(base__exact=base_pk).value_list('term', flat=True)
+      return BaseTerm.objects.filter(base__exact=base_pk).values_list('term', flat=True)
     
     def base(self, term_pk):
       o = BaseTerm.objects.get(term__exact=term_pk)
@@ -384,7 +377,7 @@ class BaseTerm(models.Model):
     system = BaseTermManager()
     
     def __str__(self):
-      return "{0}-{1}".format(
+      return "base({0})-{1}".format(
       self.base, 
       self.term, 
       )
@@ -420,7 +413,7 @@ class TermParentManager(models.Manager):
 
     #! probably not fast, but unimportant?
         #? *
-    _SQLByBase = "SELECT h.* FROM taxonomy_termparent h, taxonomy_term t WHERE t.tree = %s and t.id = h.term"
+    _SQLByBase = "SELECT h.term, h.parent FROM taxonomy_termparent h, taxonomy_term t WHERE t.tree = %s and t.id = h.term"
     def multiple_to_single(self, base_pk):
           '''
           Turn a multiparent tree into a single parent tree.
@@ -492,7 +485,7 @@ class TermParent(models.Model):
     system = TermParentManager()
     
     def __str__(self):
-      return "{0}-{1}".format(
+      return "term({0})-{1}".format(
       self.term, 
       self.parent, 
       )
@@ -504,46 +497,53 @@ class ElementManager(models.Manager):
     #_SQLDeleteElement = "DELETE FROM taxonomy_termnode WHERE term_id = %s and elem = %s"
     def merge(self, term_pks, element_pk):
         '''
-        Create/update element attachments to a Term.
+        Create/update an element attachment to terms.
         '''
         #? tad risky, testing only the first?
-        base_pk = BaseTerm.system.base(term_pk[0])
+        base_pk = BaseTerm.system.base(term_pks[0])
         self.delete(base_pk, [element_pk])
         
         elements = []
-        for tpk in term_pks:
-            Element(tpk, element_pk)      
+        if (isinstance(term_pks, list)):
+            for tpk in term_pks:
+                elements.append(Element(term=tpk, elem=element_pk))      
+        else:
+            elements.append(Element(tpk, element_pk))     
         Element.objects.bulk_create(elements)
+
   
   
     def delete(self, base_pk, element_pks):
         '''
-        Remove elements from a tree 
+        Remove elements from a base. 
         '''
-        all_term_pks = BaseTerm.system.terms(base_pk)
-        Element.objects.filter(term__in=all_term_pks, elem__in=element_pks).delete()
+        term_pks = BaseTerm.system.term_pks(base_pk)
+        if(isinstance(element_pks, list)):
+            Element.objects.filter(term__in=term_pks, elem__in=element_pks).delete()
+        else:
+            Element.objects.filter(term__in=term_pks, elem__exact=element_pks).delete()
   
     #? any need to order here?
     #? *
-    _SQLElementTerms = "SELECT t.* FROM taxonomy_term t, taxonomy_element te WHERE t.id = te.term and te.tree = %s and te.elem = %s ORDER BY t.weight, t.title"
+    _SQLElementTerms = "SELECT t.id, t.title, t.slug, t.description FROM taxonomy_term t, taxonomy_element te, taxonomy_baseterm bt WHERE bt.term = te.term and bt.base = %s and t.id = te.term and te.elem = %s ORDER BY t.weight, t.title"
     def terms(self, base_pk, element_pk): 
         '''
         Terms for a given element id, within a tree.
         The terms are ordered by weight and title, in that order.
-        The return is full term model.
+        The return is  term model.
         
-        @return [(<term>)...] Full term models, ordered.
+        @return [(id, title, slug, description)...] Full term models, ordered.
         '''
-        #c = connection.cursor()
-        #r = []
-        tpks = Element.objects.filter(tree__exact=base_pk, elem__exact=element_pk).values_list('term', flat=True)
-        return Term.objects.filter(pk__in=tpks)
-        #try:
-            #c.execute(self._SQLElementTerms, [base_pk, element_pk])
-            #r = [e for e in c.fetchall()]
-        #finally:
-            #c.close()
-        #return r
+        c = connection.cursor()
+        r = []
+        #tpks = Element.objects.filter(base__exact=base_pk, elem__exact=element_pk).values_list('term', flat=True)
+        #return Term.objects.filter(pk__in=tpks)
+        try:
+            c.execute(self._SQLElementTerms, [base_pk, element_pk])
+            r = [e for e in c.fetchall()]
+        finally:
+            c.close()
+        return r
 
       
 # We want to 
@@ -578,7 +578,7 @@ class Element(models.Model):
     system = ElementManager()
     
     def __str__(self):
-      return "{0}-{1}".format(
+      return "term({0})-{1}".format(
       self.term, 
       self.elem, 
       )

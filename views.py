@@ -53,11 +53,11 @@ this = sys.modules[__name__]
 # record retrieval from cache.
 this._tree_cache = {}
 
-def tree(base_pk):
+def base(base_pk):
     '''
-    Return a tree from an id.
+    Return a base from an id.
     
-    @param treepk int or int-coercable string 
+    @param base_pk int or int-coercable string 
     @return a Base, or None
     '''
     if (not this._tree_cache):
@@ -121,8 +121,8 @@ def _assert_cache(base_pk):
     if (base_pk in this._child_cache):
       return True
     else:
-        if (tree(base_pk) == None):
-           return False
+        if (base(base_pk) is None):
+            raise ImproperlyConfigured('Cache can not be built because given key invalid: base key:{0}'.format(base_pk))
         else:
           print('build cache...')
           # ensure we start with -1 kv present, we may look for that
@@ -167,9 +167,9 @@ def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
         
     # unverifiable parentpk?
     if (not ((parentpk in this._parent_cache[treepk]) or (parentpk == TermParent.NO_PARENT))):
-        # parentpk either not valid or a leaf, return empty
-        return None
- 
+        # parentpk either not valid or a leaf,
+        raise ImproperlyConfigured('Flat tree can not be built because parent key invalid: Parent key:{0}'.format(parentpk))
+
     # jump access to these caches
     children = this._child_cache[treepk]
     parents = this._parent_cache[treepk]
@@ -563,18 +563,6 @@ def term_descendants_element_count(term_pk):
 # These two are mainly for admin, to construct selectors and JSON
 # Move to a plugin views?
 
-#+
-def term_choices(base_pk):
-    '''
-    Term data formatted for HTML selectors.
-    Term pks from the tree. For general term parenting.
-    
-    @return list of (pk, title) from a tree.
-    '''
-    ftree = terms_flat_tree(base_pk)
-    b = [(TermParent.UNPARENT, '<not attached>'), (TermParent.NO_PARENT, '<root>')]
-    [b.append((t.pk, ('-' * t.depth) + t.title)) for t in ftree]
-    return b
 
 #! term_title_search
 def term_title_search(base_pk, pattern=None):
@@ -590,7 +578,7 @@ def term_title_search(base_pk, pattern=None):
     else:
         return Term.objects.filter(base__exact=base_pk).values_list('pk', 'title', 'description')
 
-
+#+
 def term_exclusive_select(term):
     '''
     Term data formatted for HTML selectors.
@@ -616,7 +604,7 @@ def term_form_field_select(base_pk):
     '''
         # return differnt kinds of fields depening if this is a 
         # multiparent taxonomy or not
-    t = tree(base_pk)
+    t = base(base_pk)
     choices = term_choices(base_pk)
     if (t.is_single):
       return TypedChoiceField(
@@ -634,21 +622,6 @@ def term_form_field_select(base_pk):
       label='Taxonomy',
       help_text="Choose a term to parent this item"
       )
-
-#+
-def term_select_value(base_pk, model_instance):
-    '''
-    Value to be used in a multiple select button
-    @return if instance is none, or a search for existing attached terms
-    returns empty, then [TermParent.NO_PARENT], else [instance_parents]
-    '''
-    if (model_instance is None):
-        return [TermParent.UNPARENT]
-    else:
-        xt = element_terms(base_pk, model_instance.pk)
-        if (not xt):
-            return [TermParent.UNPARENT]
-        return [t.pk for t in xt]
          
 ##############################################
 ## cache accessors
@@ -793,7 +766,7 @@ class TermListView(TemplateView):
   template_name = "taxonomy/term_list.html"
   
   def get_context_data(self, **kwargs):
-      tree1 = tree(int(kwargs['base_pk']))
+      tree1 = base(int(kwargs['base_pk']))
       if (tree1 == None):
         #? cannt redirect in this view?
         raise Http404(tmpl_404_redirect_message(Base))   
@@ -888,6 +861,10 @@ def tree_tosingleparent(request, base_pk):
     with transaction.atomic(using=router.db_for_write(TermParent)):
       return _tree_tosingleparent(request, base_pk)
   
+  
+#######################
+## Form helpers
+
 #class TermSelectWidget(forms.Select):
     #def __init__(self, attrs=None, choices=()):
         #super().__init__(attrs, choices)
@@ -898,21 +875,70 @@ def tree_tosingleparent(request, base_pk):
 
     #need a render override        
         
+#### Elems
+#+
+def term_choices(base_pk):
+    '''
+    Term data formatted for HTML selectors.
+    Term pks from the tree. For general term parenting.
+    
+    @return list of (pk, title) from a tree.
+    '''
+    ftree = terms_flat_tree(base_pk)
+    b = [(TermParent.UNPARENT, '<not attached>')]
+    [b.append((t.pk, ('-' * t.depth) + t.title)) for t in ftree]
+    return b
+
+#+
+def term_select_value(base_pk, model_instance):
+    '''
+    Value to be used in a multiple select button
+    @return if instance is none, or a search for existing attached terms
+    returns empty, then [TermParent.UNPARENT], else [instance_parent_pk, ...]
+    '''
+    if (model_instance is None):
+        return [TermParent.UNPARENT]
+    else:
+        xt = element_terms(base_pk, model_instance.pk)
+        if (not xt):
+            return [TermParent.UNPARENT]
+        return [t[0] for t in xt]
+
+def form_set_select(form, taxonomy_field_name, base_pk, instance):
+    assert base(base_pk) is not None, "base_pk can not be found: tree_pk:{0}".format(base_pk)
+    form.fields[taxonomy_field_name].choices = term_choices(base_pk)
+    form.initial[taxonomy_field_name] = term_select_value(base_pk, instance)
+        
+def element_save(form, taxonomy_field_name, base_pk, obj):
+    assert base(base_pk) is not None, "base_pk can not be found: tree_pk:{0}".format(base_pk)
+    taxonomy_terms = form.cleaned_data.get(taxonomy_field_name)
+    if(taxonomy_terms is None):
+        raise KeyError('Unable to find clean data for taxonomy parenting: field_name : {0}'.format(base_pk))
+    if ('-2' in taxonomy_terms):
+        Element.system.delete(base_pk, obj.pk)
+    else:
+        Element.system.merge(taxonomy_terms, obj.pk)
+
+def element_remove(base_pk, obj):
+    assert base(base_pk) is not None, "base_pk can not be found: tree_pk:{0}".format(base_pk)
+    Element.system.delete(base_pk, obj.pk)      
+
 # widget
+#- Unused now?
 def term_list(base_pk):
-        # All titles...
-        tree = terms_flat_tree(base_pk)
-        if (tree == None):
-            raise KeyError('Unable to find tree data: base_pk : {0}'.format(base_pk))
-         #! too easy to mix the two items
-        # assert an unparent item and a root item
-        b = [
-            (TermParent.UNPARENT, '<remove from categories>'),    
-            (TermParent.NO_PARENT, '<root>')
-            ]    
-        for e in tree: 
-            b.append((e.pk, '-'*e.depth + html.escape(e.title)))
-        return b
+    # All titles...
+    tree = terms_flat_tree(base_pk)
+    #if (tree is None):
+    #    raise KeyError('Unable to find tree data: base_pk : {0}'.format(base_pk))
+     #! too easy to mix the two items
+    # assert an unparent item and a root item
+    b = [
+        (TermParent.UNPARENT, '<remove from categories>'),    
+        (TermParent.NO_PARENT, '<root>')
+        ]    
+    for e in tree: 
+        b.append((e.pk, '-'*e.depth + html.escape(e.title)))
+    return b
   
 #class TermSelect(forms.Select):
     #def __init__(self, base_pk, attrs=None):
@@ -980,11 +1006,9 @@ class TaxonomyMultipleTermField(forms.TypedMultipleChoiceField):
         print('valid value')
         super().valid_value(value)        
        
-        
-        
-def elem_save(base_pk, term_pks, element_pk):
-    Element.system.merge(base_pk, term_pks, element_pk)
-  
+
+############################################
+
 #https://stackoverflow.com/questions/15795869/django-modelform-to-have-a-hidden-input
 class TermForm(forms.Form):
     '''
@@ -1023,7 +1047,7 @@ class TermForm(forms.Form):
       super().__init__(*args, **kwargs)
       
       base_pk = kwargs['initial']['base']
-      tree_model = tree(base_pk)
+      tree_model = base(base_pk)
       
       # set form field type
       # default is single parent. If multiple parent, override with
@@ -1044,7 +1068,7 @@ class TermForm(forms.Form):
           
   
 def term_add(request, base_pk):
-    b = tree(base_pk)
+    b = base(base_pk)
     if (b == None):
         msg = "Base with ID '{0}' doesn't exist.".format(b.pk)
         messages.add_message(request, messages.WARNING, msg) 
@@ -1197,7 +1221,7 @@ def _term_delete(request, term_pk):
           messages.add_message(request, messages.SUCCESS, msg)
           return HttpResponseRedirect(reverse('term-list', args=[b]))
       else:
-          message = '<p>Are you sure you want to delete the Term "{0}"?</p><p>Deleting a term will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a term will not delete elements attached to the term)</p>'.format(
+          message = '<p>Are you sure you want to delete the Term "{0}"?</p><p>Deleting a term will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a term will not delete elements attached to the term. However, attached elements will be removed from the taxonomies)</p>'.format(
             html.escape(tm.title)
             )
           context={

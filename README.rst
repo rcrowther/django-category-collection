@@ -16,7 +16,24 @@ https://github.com/callowayproject/django-categories
 
 Names/nomenclature
 ------------------
-The app is called 'categories'. But the URLs are currently rooted at 'taxonomy'. One set of categories is called a 'tree'. A 'category' within a tree is called a 'term'. Data attached to a tree, 'categorised data', are called 'elements'.
+The app is called 'categories'. But the app is called, and the URLs are rooted, at 'taxonomy'. One set of categories is called a 'base'. A 'category' within a tree is called a 'term'. Data attached to a tree of terms, 'categorised data', are called 'elements'.
+
+
+Data layout in the taxonomy
+---------------------------
+There are several ways to define a taxonomy structure. This taxonomy establishes 'bases'. Each base can contain several trees of 'terms'.
+
+It is only possible to attach data elements to terms, not the 'base'. If you would like a taxonomy where elements can be attached to the base, start a base then add a single term which will be the 'root term'. Build from there e.g.::
+
+    base = 'car categories'
+    - Cars
+    -- saloon 
+    -- hatchback 
+    -- sport
+    ...
+  
+etc. now you can attach an unclassified car to the generic term 'cars'.
+
 
 Admin
 -----
@@ -29,45 +46,114 @@ The base look of the admin views and forms is similar to Django admin. However, 
 
 General Structure
 ------------------
-Define trees. Put terms into trees and parent them with other terms or \<root\>. 
+Define trees. Put terms into trees and parent them with other terms, or at base in \<root\>,::
 
-Fabrics
-Cord Denim  Linen Rough Cotton Herringbone Dye-printed Felt
+    base = Fabrics
+    - Cord 
+    - Denim  
+    - Linen 
+    -- Rough 
+    - Cotton
+    -- Herringbone 
+    -- Dye-printed 
+    - Felt
 
 etc.
 
-Add elements to trees. 
+Add elements to terms in the trees. 
 
 
-On the attachment of elements to terms
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-To store elements in the taxonomy you do not need to modify the models of the element to be stored. All that needs to be done is to work with the id/pk of the models. 
+To attach elements to terms
+---------------------------
+To store elements in the taxonomy you do not need to modify the models of the element to be stored. All that needs to be done is to work with the id/pk of the data. 
 
-Of course, there is nothing to stop you adding a Foreign field to a model which refers to taxonomy terms. This will make finding the term a model is in very easy. But as soon as you need further data such as parents, and you usually will, most advantage of this shortcut will be lost. 
+Of course, there is nothing to stop you adding a Foreign field to a model which refers to taxonomy terms. This will make finding the term a model is in very easy. But if you need further data such as parents, and you usually will, most advantages of this shortcut will be lost. 
 
-In general, I don't think a categorisation system should intrude on data Models, especially in a web environment. Perhaps at some point I will add this feature? But a Python list makes no requirement on it's contents. 
+In general, I don't think a categorisation system should intrude on data, especially in a web environment. Perhaps at some point I will add this feature? But a Python list makes no requirement on it's contents. 
 
 This makes the connection between element models and the taxonomy collection loose. It's up to you, the coder, to keep the keys you store on a tree unique. The app makes a minimal attempt at keeping the database consistent by refusing duplicate keys on a term, but that is all.
 
 
-To attach an element in code,::
+Using a Foreign Field in the element model, and Django Admin
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+One good reason for using a Foreign Field in element Models is because the taxonomy will integrate seamlessly into Django Admin. All the normal methods for modification and display will work. 
 
-  TermNode.system.merge(term_pk, element_id)  
+There is one issue; the Taxonomy app holds terms in one big table, so terms will be displayed from every base. If you wish to limit term selection to one base, you will need to do some extra work (you may like to try one of the Field/Widget combinations below).
+
+I havn't pursued this much, preferring to work on non-integrated admin. Foreign Keys will work well enough as they stand. Sometime...
+
+
+Attaching elements without using a foreign field
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Django has multiple possibilities for forms and code. Here are the main solutions,
+
+All the below methods, except for the note about code, add a 'select' box to an admin form. You are not limited to admin, the same methods can add Taxonomy selection fields to other forms. 
+
+Other, more scaleable widgets are available, as we will see further on.
 
 For GUI forms, use the form at
 
 taxonomy/term/(?P<term_pk>\d+)/element/merge/
 
 
-Using a Foreign Field in the element model, and Django Admin
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-One good reason for using a Foreign Field in element Models is because the taxonomy will integrate seamlessly into Django Admin. All the normal methods for modification and display will work. 
+Using code
+++++++++++
+To attach an element,::
 
-There is one issue; Taxonomy terms are held in one big table, so terms will be displayed from every tree. If you wish to limit term selection to one tree, you will need to do some extra work (you may like to try one of the Field/Widget combinations below).
+  Element.system.merge(term_pks, element_pk)  
 
-I havn't pursued this much, preferring to work on non-integrated admin. Foreign Keys will work well enough as they stand. Sometime...
+To delete,::
+
+  Element.system.delete(base_pk, element_pks):
 
 
+
+An admin form, fully broken out
++++++++++++++++++++++++++++++++
+Your form is broken out because it is heavily customised for structure, maybe has extra fields. Add these::
+    
+    # 1. import the methods and Django field
+    from taxonomy.views import form_set_select, element_save, element_remove
+    from taxonomy.fields import TaxonomyTermField
+    
+    class ArticleForm(ModelForm):
+        # 2. add the extra field to the form (this will not save, is there to choose a term)
+        taxonomy_term = TaxonomyTermField()
+    
+            
+        def __init__(self, data=None, files=None, auto_id='id_%s', prefix=None,
+                     initial=None, error_class=ErrorList, label_suffix=None,
+                     empty_permitted=False, instance=None, use_required_attribute=None):
+            super().__init__(data, files, auto_id, prefix,
+                     initial, error_class, label_suffix,
+                     empty_permitted, instance, use_required_attribute)
+            
+            # 3. Set allowable choices
+            form_set_select(self, 'taxonomy_term', 32, instance)
+    
+    
+    Note that the two form additions need the 'base' value to be set. This may seem limiting but is typical Django procedure. This parameter must be set also in the next step.
+    
+    Now we need to save and load the results. In ModelAdmin,
+    
+    
+    class ArticleAdmin(admin.ModelAdmin):
+        form = ArticleForm
+        ...
+    
+        def save_model(self, request, obj, form, change):
+            super().save_model(request, obj, form, change)
+            # 4. Save the connection (or disconnection) to a term
+            element_save(form, 'taxonomy_term', 32, obj)
+    
+          
+        def delete_model(request, obj):
+            # 5. Tidy the taxonomy by deleting any connection to a term
+            element_remove(32, obj)
+            super().delete_model(request, obj)
+  
+Right, that's it. Instances of the Model Article can now be attached to taxonomy terms, removed, and the connection will automatically be removed if either the term or the element is deleted. The system is the same for any form using ModelAfmin or ModelForm.
 
 Fields and Widgets
 ~~~~~~~~~~~~~~~~~~
