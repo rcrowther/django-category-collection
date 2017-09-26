@@ -578,11 +578,29 @@ def term_title_search(base_pk, pattern=None):
     else:
         return Term.objects.filter(base__exact=base_pk).values_list('pk', 'title', 'description')
 
+
+#+
+def term_all_select(base_pk):
+    '''
+    All titles from a tree.
+    The titles have a representation of structure by indenting with '-'.    
+    Intended for single parent select boxes.
+
+    @param base_pk int or coercable string
+    @return [(pk, marked title)...]
+    '''
+    tree = terms_flat_tree(base_pk)
+    b = [(TermParent.NO_PARENT, '<root>')]    
+    for e in tree:
+        b.append((e.pk, '-'*e.depth + html.escape(e.title)))  
+    return b
+
+      
 #+
 def term_exclusive_select(term):
     '''
     Term data formatted for HTML selectors.
-    Term pks from the tree but not a decendent of the given term_pk.
+    Term pks from the tree but not a descendent of the given term_pk.
     For parenting terms, to avoid child clashes.
     
     @return list of (pk, title) from a tree which do not descend from, 
@@ -594,8 +612,12 @@ def term_exclusive_select(term):
     dpks.add(term.pk)
     bpk = BaseTerm.system.base(term.pk)
     ftree = terms_flat_tree(bpk)
-    return [(t.pk, ('-' *t.depth) + t.title) for t in ftree if (t.pk not in dpks)]
-
+    b = [(TermParent.NO_PARENT, '<root>')]    
+    for t in ftree:
+        if (t.pk not in dpks):
+            b.append((t.pk, ('-'*t.depth) + t.title)) 
+    return b
+    
 from django.forms import TypedChoiceField, TypedMultipleChoiceField
 #!
 def term_form_field_select(base_pk):
@@ -648,69 +670,6 @@ def term_parent_pks(base_pk, pk):
 
 
 
-#- only a convenience? move?
-def tree_select_titles(base_pk):
-    '''
-    All titles from a tree.
-    The titles have a representation of structure by indenting with '-'.    
-    Intended for single parent select boxes.
-
-    @param base_pk int or coercable string
-    @return [(pk, marked title)...]
-    '''
-    # can be none
-    tree = terms_flat_tree(base_pk)
-
-    # assert a root item
-    b = [(TermParent.NO_PARENT, '<root>')]    
-    for e in tree:
-        b.append((e.pk, '-'*e.depth + html.escape(e.title)))
-  
-    return b
-
-#-
-# used someplace?
-def tree_term_select_titles(term_pk):
-    '''
-    Ancestor titles from a tree.
-    The titles have a representation of structure by indenting with '-'.
-    Intended for single parent select boxes.
-
-    @param term_pk int or coercable string
-    @return list [(pk, title)...]
-    '''
-    # coercion needed for the test below
-    pk = int(term_pk)
-    base_pk = BaseTerm.system.term(pk).tree
-    
-    # assert a root item
-    b = [(TermParent.NO_PARENT, '<root>')]
-    
-    #! can be none
-    tree = terms_flat_tree(base_pk)
-  
-    # too simple. Needs to continue to a root
-    gather = True 
-    depth_note = -99
-    for t in tree:
-      
-        # switch gather on if root term
-        depth = t.depth
-
-        if (depth <= depth_note):
-          gather = True
-          depth_note = -99
-        if (t.pk == pk):
-          gather = False
-          depth_note = depth
-
-        if (gather):
-            b.append((t.pk, '-' * t.depth + html.escape(t.title)))
-    return b
-
-
-
-      
 #######################################
 ## code-level templates
 # (Mr. Lazy)
@@ -876,69 +835,24 @@ def tree_tosingleparent(request, base_pk):
     #need a render override        
         
 #### Elems
-#+
-def term_choices(base_pk):
-    '''
-    Term data formatted for HTML selectors.
-    Term pks from the tree. For general term parenting.
-    
-    @return list of (pk, title) from a tree.
-    '''
-    ftree = terms_flat_tree(base_pk)
-    b = [(TermParent.UNPARENT, '<not attached>')]
-    [b.append((t.pk, ('-' * t.depth) + t.title)) for t in ftree]
-    return b
-
-#+
-def term_select_value(base_pk, model_instance):
-    '''
-    Value to be used in a multiple select button
-    @return if instance is none, or a search for existing attached terms
-    returns empty, then [TermParent.UNPARENT], else [instance_parent_pk, ...]
-    '''
-    if (model_instance is None):
-        return [TermParent.UNPARENT]
-    else:
-        xt = element_terms(base_pk, model_instance.pk)
-        if (not xt):
-            return [TermParent.UNPARENT]
-        return [t[0] for t in xt]
-
-def form_set_select(form, taxonomy_field_name, base_pk, instance):
-    assert base(base_pk) is not None, "base_pk can not be found: tree_pk:{0}".format(base_pk)
-    form.fields[taxonomy_field_name].choices = term_choices(base_pk)
-    form.initial[taxonomy_field_name] = term_select_value(base_pk, instance)
-        
-def element_save(form, taxonomy_field_name, base_pk, obj):
-    assert base(base_pk) is not None, "base_pk can not be found: tree_pk:{0}".format(base_pk)
-    taxonomy_terms = form.cleaned_data.get(taxonomy_field_name)
-    if(taxonomy_terms is None):
-        raise KeyError('Unable to find clean data for taxonomy parenting: field_name : {0}'.format(base_pk))
-    if ('-2' in taxonomy_terms):
-        Element.system.delete(base_pk, obj.pk)
-    else:
-        Element.system.merge(taxonomy_terms, obj.pk)
-
-def element_remove(base_pk, obj):
-    assert base(base_pk) is not None, "base_pk can not be found: tree_pk:{0}".format(base_pk)
-    Element.system.delete(base_pk, obj.pk)      
+     
 
 # widget
 #- Unused now?
-def term_list(base_pk):
-    # All titles...
-    tree = terms_flat_tree(base_pk)
-    #if (tree is None):
-    #    raise KeyError('Unable to find tree data: base_pk : {0}'.format(base_pk))
-     #! too easy to mix the two items
-    # assert an unparent item and a root item
-    b = [
-        (TermParent.UNPARENT, '<remove from categories>'),    
-        (TermParent.NO_PARENT, '<root>')
-        ]    
-    for e in tree: 
-        b.append((e.pk, '-'*e.depth + html.escape(e.title)))
-    return b
+#def term_list(base_pk):
+    ## All titles...
+    #tree = terms_flat_tree(base_pk)
+    ##if (tree is None):
+    ##    raise KeyError('Unable to find tree data: base_pk : {0}'.format(base_pk))
+     ##! too easy to mix the two items
+    ## assert an unparent item and a root item
+    #b = [
+        #(TermParent.UNPARENT, '<remove from categories>'),    
+        #(TermParent.NO_PARENT, '<root>')
+        #]    
+    #for e in tree: 
+        #b.append((e.pk, '-'*e.depth + html.escape(e.title)))
+    #return b
   
 #class TermSelect(forms.Select):
     #def __init__(self, base_pk, attrs=None):
@@ -998,13 +912,13 @@ from django.forms.fields import CallableChoiceIterator
 # - How to react to multi[ple hierarchy?
 # - how to act on it? (Element.system.tree_remove(base_pk), Element.system.create(base_pk, element_pk))
 
-class TaxonomyMultipleTermField(forms.TypedMultipleChoiceField):
-    def __init__(self, base_pk, *args, **kwargs):
-      super().__init__( choices=partial(term_list, base_pk),*args, coerce=lambda val: int(val), **kwargs)
+#class TaxonomyMultipleTermField(forms.TypedMultipleChoiceField):
+    #def __init__(self, base_pk, *args, **kwargs):
+      #super().__init__( choices=partial(term_list, base_pk),*args, coerce=lambda val: int(val), **kwargs)
 
-    def valid_value(self, value):
-        print('valid value')
-        super().valid_value(value)        
+    #def valid_value(self, value):
+        #print('valid value')
+        #super().valid_value(value)        
        
 
 ############################################
@@ -1058,12 +972,11 @@ class TermForm(forms.Form):
       # set choices
       pk = kwargs['initial'].get('pk')
       if(pk is not None):
-          # update form. Targeted choices
-          #self.fields['parents'].choices = tree_term_select_titles(pk)
+          # update form. root and targeted choices
           self.fields['parents'].choices = term_exclusive_select(term(pk))
       else:
-          # create form. All choices.
-          self.fields['parents'].choices = tree_select_titles(base_pk) 
+          # create form. root and all term choices.
+          self.fields['parents'].choices = term_all_select(base_pk) 
 
           
   

@@ -68,20 +68,37 @@ Now add elements to the terms in the trees.
 
 To attach elements to terms
 ---------------------------
-To store elements in the taxonomy you do not need to modify the models of the element to be stored. All that needs to be done is to work with the id/pk of the data. 
+Many possibilities here. But, first, you may not use a taxonomy to classify user-visual content at all. You may use one to classify downloadable files. Or your app may not offer a conventional admin interface. You need to know about,
+
+Using code
+~~~~~~~~~~
+To attach an element,::
+
+  Element.system.merge(term_pks, element_pk)  
+
+To delete,::
+
+  Element.system.delete(base_pk, element_pks):
+
+Ok, let's go on to using Django models as elements. 
+
+
+To attach other models to terms
+-------------------------------
+To store elements in the taxonomy you do not need to modify the models of the element to be stored. All that needs to be done is to work with the id/pk of the element data. 
 
 Of course, there is nothing to stop you adding a Foreign field to a model which refers to taxonomy terms. This will make finding the term a model is attached to very easy. But if you need further data such as term parents, and you usually will, most advantages of this shortcut will be lost. 
 
 In general, I don't think a categorisation system should intrude on data, especially in a web environment. Perhaps at some point I will add this feature? But a Python list makes no requirement on it's contents. 
 
-No foreign field makes the connection between element models and the taxonomy collection loose. If you use this approach, it's up to you, the coder, to keep the keys you store on a tree unique. The app makes a minimal attempt at keeping the database consistent by refusing duplicate keys on a term, but that is all.
+When no foreign field is used, the connection between element models and the taxonomy collection is loose. If you use this approach, it's up to you, the coder, to keep the keys you store on a tree unique. The app makes a minimal attempt at keeping the database consistent by refusing duplicate keys on a term, but that is all.
 
 
 Using a Foreign Field in the element model, and Django Admin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 One good reason for using a Foreign Field in element Models is because the taxonomy will integrate seamlessly into Django Admin. All the normal methods for modification and display will work. 
 
-There is an issue; the Taxonomy app holds terms in one big table. Any forms displaying a choice of terms wil display terms from every base. If you wish to limit term selection to one base, you will need to do some extra work (you may like to try one of the Field/Widget combinations below).
+There is an issue; the Taxonomy app holds term data in one big table. Any forms displaying a choice from a fereign key will offer terms from every base. If you wish to limit term selection to one base, you will need to do some extra work (you may like to try one of the Field/Widget combinations below).
 
 I havn't pursued this much, preferring to work on non-integrated admin. Foreign Keys will work well enough as they stand. Sometime...
 
@@ -92,22 +109,13 @@ Django has multiple possibilities for forms and code. Here are the main solution
 
 The below methods, except for the note about code, add a 'select' box to an admin form. You are not limited to admin, the same methods can add Taxonomy selection fields to other forms. 
 
-Other, more scaleable widgets are available, as we will see further on.
+As we will see further on, other more scaleable widgets are available.
 
 For GUI forms, use the form at
 
 taxonomy/term/(?P<term_pk>\d+)/element/merge/
 
 
-Using code
-++++++++++
-To attach an element,::
-
-  Element.system.merge(term_pks, element_pk)  
-
-To delete,::
-
-  Element.system.delete(base_pk, element_pks):
 
 
 
@@ -137,8 +145,7 @@ Your form is broken out because it is heavily customised for structure, maybe ha
     
 Note that the two form additions need the 'base' value to be set. This may seem limiting but is typical Django procedure. This parameter must be set also in the next step.
     
-Now we need to save and load the results. In ModelAdmin,::
-    
+Now we need to save and load the results. In ModelAdmin,::    
     
     class ArticleAdmin(admin.ModelAdmin):
         form = ArticleForm
@@ -156,6 +163,7 @@ Now we need to save and load the results. In ModelAdmin,::
             element_remove(32, obj)
   
 Right, that's it. Instances of the Model (in this example, 'Article') can now be attached and detached from taxonomy terms. If either the term or the element is deleted, the connection will be automatically removed. The system is the same for any form using ModelAfmin or ModelForm.
+
 
 ModelAdmin  only
 ++++++++++++++++

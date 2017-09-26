@@ -1,8 +1,9 @@
 from django.contrib.admin import ModelAdmin
 from .fields import TaxonomyTermField
-from .views import form_set_select, element_save, element_remove
+#from .element import form_set_select, element_save, element_remove
+from taxonomy import element
 
-
+#! could move to elements?
 from django.forms import ModelForm
 
 def WithTaxonomyForm(model1, base1, *args, fields1='__all__', **kwargs):
@@ -13,7 +14,7 @@ def WithTaxonomyForm(model1, base1, *args, fields1='__all__', **kwargs):
             fields = fields1
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            form_set_select(self, 'taxonomy_term', base1, kwargs['instance'])   
+            element.form_set_select(self, 'taxonomy_term', base1, kwargs['instance'])   
     return WithTaxonomyForm
     
 def WithTaxonomyAdmin(base):
@@ -23,8 +24,8 @@ def WithTaxonomyAdmin(base):
             self.form = WithTaxonomyForm(model, base)
         def save_model(self, request, obj, form, change):
             super().save_model(request, obj, form, change)
-            element_save(form, 'taxonomy_term', 32, obj)
+            element.save(form, 'taxonomy_term', 32, obj)
         def delete_model(self, request, obj):
             super().delete_model(request, obj)
-            element_remove(32, obj)
+            element.remove(32, obj)
     return WithTaxonomyAdmin
