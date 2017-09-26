@@ -2,7 +2,7 @@ Django category collection
 ==========================
 For Django, the Python-coded Web development framework.
 
-A collection modelling categories (sometimes known as 'taxonomies'.
+A collection modelling categories (sometimes known as 'taxonomies').
 
 
 Alternatives
@@ -11,19 +11,19 @@ Alternatives
 https://djangopackages.org/packages/p/django-categories/
 https://github.com/callowayproject/django-categories
 
-    This project is mature with many commits. It uses the MPTT technique of data description, so is a fundamentally different implementation to the project here. Ab MPTT implementation will be good at isolating trees of categories, and gathering data elements from multiple categories/terms (e.g. you want all 'cars', even if the categorisation of 'cars' include many sub-categories). For more detail see the comparison at the end of this page.
+    This project is mature with many commits. It uses the MPTT technique of data description, so is a fundamentally different implementation to the project here. An MPTT implementation will be good at isolating trees of categories, and gathering data elements from multiple categories/terms (e.g. you want all 'cars', even if the categorisation of 'cars' include many sub-categories). For more detail see the comparison at the end of this page.
 
 
 Names/nomenclature
 ------------------
-The app is called 'categories'. But the app is called, and the URLs are rooted, at 'taxonomy'. One set of categories is called a 'base'. A 'category' within a tree is called a 'term'. Data attached to a tree of terms, 'categorised data', are called 'elements'.
+The app is called 'categories'. But the app is called, and the URLs are rooted, at 'taxonomy'. One set of categories is called a 'base'. A 'category' within a base is called a 'term'. Data attached to a tree of terms, 'categorised data', are called 'elements'.
 
 
 Data layout in the taxonomy
 ---------------------------
 There are several ways to define a taxonomy structure. This taxonomy establishes 'bases'. Each base can contain several trees of 'terms'.
 
-It is only possible to attach data elements to terms, not the 'base'. If you would like a taxonomy where elements can be attached to the base, start a base then add a single term which will be the 'root term'. Build from there e.g.::
+You can only attach data elements to terms, not the 'base'. If you would like a taxonomy where elements can be attached to the base, start a base then add a single term which will be the 'root term'. Build from there e.g.::
 
     base = 'car categories'
     - Cars
@@ -46,49 +46,51 @@ The base look of the admin views and forms is similar to Django admin. However, 
 
 General Structure
 ------------------
-Define trees. Put terms into trees and parent them with other terms, or at base in \<root\>,::
+Define a base. Put terms into the base and parent them with other terms, or at the bottom in \<root\>,::
 
     base = Fabrics
-    - Cord 
+    - Corduroy 
     - Denim  
     - Linen 
-    -- Rough 
+    -- Untreated
     - Cotton
     -- Herringbone 
-    -- Dye-printed 
+    -- Dye-printed
+    --- Colourfast
+    --- Speciality
+    -- Rough 
     - Felt
 
 etc.
 
-Add elements to terms in the trees. 
+Now add elements to the terms in the trees. 
 
 
 To attach elements to terms
 ---------------------------
 To store elements in the taxonomy you do not need to modify the models of the element to be stored. All that needs to be done is to work with the id/pk of the data. 
 
-Of course, there is nothing to stop you adding a Foreign field to a model which refers to taxonomy terms. This will make finding the term a model is in very easy. But if you need further data such as parents, and you usually will, most advantages of this shortcut will be lost. 
+Of course, there is nothing to stop you adding a Foreign field to a model which refers to taxonomy terms. This will make finding the term a model is attached to very easy. But if you need further data such as term parents, and you usually will, most advantages of this shortcut will be lost. 
 
 In general, I don't think a categorisation system should intrude on data, especially in a web environment. Perhaps at some point I will add this feature? But a Python list makes no requirement on it's contents. 
 
-This makes the connection between element models and the taxonomy collection loose. It's up to you, the coder, to keep the keys you store on a tree unique. The app makes a minimal attempt at keeping the database consistent by refusing duplicate keys on a term, but that is all.
+No foreign field makes the connection between element models and the taxonomy collection loose. If you use this approach, it's up to you, the coder, to keep the keys you store on a tree unique. The app makes a minimal attempt at keeping the database consistent by refusing duplicate keys on a term, but that is all.
 
 
 Using a Foreign Field in the element model, and Django Admin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 One good reason for using a Foreign Field in element Models is because the taxonomy will integrate seamlessly into Django Admin. All the normal methods for modification and display will work. 
 
-There is one issue; the Taxonomy app holds terms in one big table, so terms will be displayed from every base. If you wish to limit term selection to one base, you will need to do some extra work (you may like to try one of the Field/Widget combinations below).
+There is an issue; the Taxonomy app holds terms in one big table. Any forms displaying a choice of terms wil display terms from every base. If you wish to limit term selection to one base, you will need to do some extra work (you may like to try one of the Field/Widget combinations below).
 
 I havn't pursued this much, preferring to work on non-integrated admin. Foreign Keys will work well enough as they stand. Sometime...
 
 
 Attaching elements without using a foreign field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Django has multiple possibilities for forms and code. Here are the main solutions.
 
-Django has multiple possibilities for forms and code. Here are the main solutions,
-
-All the below methods, except for the note about code, add a 'select' box to an admin form. You are not limited to admin, the same methods can add Taxonomy selection fields to other forms. 
+The below methods, except for the note about code, add a 'select' box to an admin form. You are not limited to admin, the same methods can add Taxonomy selection fields to other forms. 
 
 Other, more scaleable widgets are available, as we will see further on.
 
@@ -113,12 +115,12 @@ An admin form, fully broken out
 +++++++++++++++++++++++++++++++
 Your form is broken out because it is heavily customised for structure, maybe has extra fields. Add these::
     
-    # 1. import the methods and Django field
+    # 1. import the methods and custom form field
     from taxonomy.views import form_set_select, element_save, element_remove
     from taxonomy.fields import TaxonomyTermField
     
     class ArticleForm(ModelForm):
-        # 2. add the extra field to the form (this will not save, is there to choose a term)
+        # 2. add the extra field to the form (this will not save to the Model database table, is here to choose a term)
         taxonomy_term = TaxonomyTermField()
     
             
@@ -133,9 +135,9 @@ Your form is broken out because it is heavily customised for structure, maybe ha
             form_set_select(self, 'taxonomy_term', 32, instance)
     
     
-    Note that the two form additions need the 'base' value to be set. This may seem limiting but is typical Django procedure. This parameter must be set also in the next step.
+Note that the two form additions need the 'base' value to be set. This may seem limiting but is typical Django procedure. This parameter must be set also in the next step.
     
-    Now we need to save and load the results. In ModelAdmin,
+Now we need to save and load the results. In ModelAdmin,::
     
     
     class ArticleAdmin(admin.ModelAdmin):
@@ -149,11 +151,28 @@ Your form is broken out because it is heavily customised for structure, maybe ha
     
           
         def delete_model(request, obj):
+            super().delete_model(request, obj)
             # 5. Tidy the taxonomy by deleting any connection to a term
             element_remove(32, obj)
-            super().delete_model(request, obj)
   
-Right, that's it. Instances of the Model Article can now be attached to taxonomy terms, removed, and the connection will automatically be removed if either the term or the element is deleted. The system is the same for any form using ModelAfmin or ModelForm.
+Right, that's it. Instances of the Model (in this example, 'Article') can now be attached and detached from taxonomy terms. If either the term or the element is deleted, the connection will be automatically removed. The system is the same for any form using ModelAfmin or ModelForm.
+
+ModelAdmin  only
+++++++++++++++++
+You have an ModelAdmin, but no form, because you did some customization but nothing that altered the structure of the form. Do this,
+
+# 1. import this method (despite the capital letters, it's a method. But a class factory, which acts like, and returns, a class)
+from taxonomy.modeladmin import WithTaxonomyAdmin
+
+    # 2. inherit from WithTaxonomyAdmin, not forms.ModelAdmin. The meta-constructor requires a base_pk
+    class ArticleAdmin(WithTaxonomyAdmin(32)):
+        # 3. (WithTaxonomyAdmin acts as ModelAdmin, so...) you must declare the field 'taxonomy_term', or the field will not appear
+        fields = ('taxonomy_term', 'title', 'slug', 'summary', 'body', 'author')
+
+Now this admin form will show a field where instances of the model can be attached and detached from taxonomy terms. 
+
+This code is naturally DRY. It also behaves, for all other customisation, like a ModelAdmin form. Still, there is more... [TODO: not figured out if this can be done yet]
+
 
 Fields and Widgets
 ~~~~~~~~~~~~~~~~~~
@@ -206,9 +225,9 @@ This is one of my first efforts in Django. It has caused me trouble. The form do
 
 A comparison of 'Django category collection' and 'django-categories'
 ---------------------------------------------------------------------
-In comparison, the theory behind this project will be inelegant at discovering data elements from multiple terms. The action is possible, but not of great interest and has not been implemented (yet). Also, this project caches all data from terms/categories, and so may not scale well to many terms. Please run tests before you implement the Dewey_ reference system.
+In comparison, the theory behind this project will be inelegant at discovering data elements from multiple terms. The action is possible, but not of great interest and has not been implemented (yet). Also, this project caches all data from terms/categories, and so may not scale well to many terms. Before you implement the Dewey_ reference system, please run tests.
 
-However, this implementation of a category collection has advantages (as all differing implementations will). The app is nearly self-contained. It's storage models are plain and few, making backup and salvage simple---salvage can be managed through Django admin. The view code is twisty in places, but can derive really useful data from the category trees. Without AJAX or whatever, even the core methods are sophisticated. And finally, this app has a Pythonlike interface.
+However, this implementation of a category collection has advantages (as all differing implementations will). The app is nearly self-contained. It's storage models are plain and few, making backup and salvage simple---salvage can be managed through Django admin. The view code is twisty in places, but can derive really useful data from the category trees. Without AJAX or whatever, the core methods are sophisticated. And finally, the container in this app has a Pythonlike interface.
 
 .. _Dewey: https://en.wikipedia.org/wiki/Dewey_Decimal_Classification
 

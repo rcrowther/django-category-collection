@@ -1,9 +1,8 @@
 from django import forms
 
 from django.core.exceptions import ImproperlyConfigured
-from .fields import IDTitleAutocompleteField
-from .widgets import IDTitleAutocompleteInput
-
+from .fields import IDTitleAutocompleteField, TaxonomyTermField
+#from .widgets import IDTitleAutocompleteInput
 
 class ElementForm(forms.Form):
     '''
@@ -53,3 +52,9 @@ class ElementSearchForm(forms.Form):
 
     def __init__(self, tree_pk, *args, **kwargs):
       super().__init__(*args, **kwargs)
+
+###################
+
+
+
+
