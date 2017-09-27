@@ -124,7 +124,7 @@ An admin form, fully broken out
 Your form is broken out because it is heavily customised for structure, maybe has extra fields. Add these::
     
     # 1. import the methods and custom form field
-    from taxonomy.views import form_set_select, element_save, element_remove
+    from taxonomy import element
     from taxonomy.fields import TaxonomyTermField
     
     class ArticleForm(ModelForm):
@@ -140,7 +140,7 @@ Your form is broken out because it is heavily customised for structure, maybe ha
                      empty_permitted, instance, use_required_attribute)
             
             # 3. Set allowable choices
-            form_set_select(self, 'taxonomy_term', 32, instance)
+            element.form_set_select(self, 'taxonomy_term', 32, instance)
     
     
 Note that the two form additions need the 'base' value to be set. This may seem limiting but is typical Django procedure. This parameter must be set also in the next step.
@@ -154,13 +154,13 @@ Now we need to save and load the results. In ModelAdmin,::
         def save_model(self, request, obj, form, change):
             super().save_model(request, obj, form, change)
             # 4. Save the connection (or disconnection) to a term
-            element_save(form, 'taxonomy_term', 32, obj)
+            element.save(form, 'taxonomy_term', 32, obj)
     
           
         def delete_model(request, obj):
             super().delete_model(request, obj)
             # 5. Tidy the taxonomy by deleting any connection to a term
-            element_remove(32, obj)
+            element.remove(32, obj)
   
 Right, that's it. Instances of the Model (in this example, 'Article') can now be attached and detached from taxonomy terms. If either the term or the element is deleted, the connection will be automatically removed. The system is the same for any form using ModelAfmin or ModelForm.
 

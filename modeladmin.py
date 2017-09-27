@@ -3,7 +3,7 @@ from .fields import TaxonomyTermField
 #from .element import form_set_select, element_save, element_remove
 from taxonomy import element
 
-#! could move to elements?
+#! could move to element module?
 from django.forms import ModelForm
 
 def WithTaxonomyForm(model1, base1, *args, fields1='__all__', **kwargs):

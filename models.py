@@ -274,14 +274,6 @@ class TermManager(models.Manager):
         
 
 class Term(models.Model):
-    '''
-    parent can be null, for top level. Therefore can be root also.
-    '''
-    # auto destruction and detection is nice. But so is manual insert.
-    #tree = models.IntegerField(
-      #db_index=True,
-      #help_text="A Base associated with this Term.",
-      #)
       
     # Not unique. All terms in same table, different taxonomies.
     title = models.CharField(
@@ -342,6 +334,22 @@ class BaseTermManager(models.Manager):
       o = BaseTerm.objects.get(term__exact=term_pk)
       return o.base
     
+    _SQLTreeTerm = "SELECT * FROM taxonomy_term, taxonomy_baseterm bt WHERE bt.base = %s and id = bt.term"
+    def term_iter(self, base_pk):
+      '''
+      Parent/term pks for a given tree.
+      The term pks are ordered by weight and title, in that order.
+      
+      @param func (term_id, parent_id) as raw fetchall.
+      '''      
+      # Django usually does this for us but, without Foreign Keys
+      # the join must be manually constructed.
+      with connection.cursor() as c:
+          c.execute(self._SQLTreeTerm, [base_pk])
+          for e in c.fetchall():
+              yield Term(pk=e[0], title=e[1], slug=e[2], description=e[3], weight=e[4])      
+      
+    #! ordered_terms
     _SQLTree = "SELECT t.id, t.title, t.slug, t.description FROM taxonomy_term t, taxonomy_baseterm bt WHERE bt.base = %s and id = bt.term  ORDER BY t.weight, t.title"
     def ordered(self, base_pk):
         '''
@@ -410,6 +418,20 @@ class TermParentManager(models.Manager):
           c.execute(self._SQLTermParentage, [base_pk])
           for e in c.fetchall():
             func(e)
+
+    _SQLParentage = "SELECT h.term, h.parent FROM taxonomy_termparent h, taxonomy_term t, taxonomy_baseterm bt WHERE bt.base = %s and bt.term = h.term and t.id = h.term ORDER BY t.weight, t.title"
+    def iter_ordered(self, base_pk):
+      '''
+      Term/parent pk pairs for a given tree.
+      The term pks are ordered by weight and title, in that order.
+      
+      @param func (term_id, parent_id) as raw fetchall.
+      '''      
+      # order by term
+      with connection.cursor() as c:
+          c.execute(self._SQLParentage, [base_pk])
+          for e in c.fetchall():
+            yield(e)
 
     #! probably not fast, but unimportant?
         #? *
