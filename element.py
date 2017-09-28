@@ -1,6 +1,9 @@
-from .models import TermParent, Element
-from .views  import terms_flat_tree, element_terms, base
+'''
+Handle taxonomy container elements within forms
+'''
 
+from .models import TermParent, Element
+from .api import terms_flat_tree, element_terms, base
 
 def term_choices(base_pk):
     '''

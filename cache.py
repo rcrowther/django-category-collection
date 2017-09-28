@@ -4,6 +4,8 @@ import sys
 from collections import namedtuple
 from functools import partial
 
+#! are pk versions necessary?
+#! derive base from term or insist on supply?
 
 # Pointer to the module object instance, for module-wide storage.
 # https://stackoverflow.com/questions/1977362/how-to-create-module-wide-variables-in-python#1978076
@@ -22,7 +24,7 @@ def base(base_pk):
         xt = Base.objects.all()
         for t in xt:
            this._base_cache[int(t.pk)] = t
-    return this._base_cache.get(int(base_pk))
+    return this._base_cache[int(base_pk)]
 
 
 
@@ -34,6 +36,10 @@ this._parent_cache = {}
 # cache of term data
 # {tree_id: [{term_id:Term...}]}
 this._term_cache = {}
+
+# cache of term counts
+# {term_id: count}
+this._count = {}
 
 # storage tuple
 TermFTData = namedtuple('TermFTData', ['pk', 'title', 'slug', 'description', 'depth'])
@@ -159,23 +165,71 @@ def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
 
 
 
-def base_clear():
+def base_merge_clear():
     '''
-    Clear cached tree (not flat tree) data. 
-    For create or update on a Base. There is no need to touch flat tree
+    Clear cached data on base create or update. 
+    For create or update on a Base. There is no need to touch other
     data for this.
     '''
     this._base_cache = {}
 
+def base_delete_clear(base_pk):
+    '''
+    Clear cached data on base delete.
+    '''
+    assert isinstance(base_pk, int), "Not an integer!"
+    this._base_cache = {}
+    try:
+        del(this._child_cache[base_pk])
+    except KeyError:
+      pass
+    # demolition, unless we recover deleted terms?
+    this._count = {}
+
+def term_merge_clear(base_pk):
+    '''
+    Clear cached data on term create or update. 
+    Tree info needs invalidating.
+    '''
+    assert isinstance(base_pk, int), "Not an integer!"
+    try:
+        del(this._child_cache[base_pk])
+    except KeyError:
+      pass
+    #N.B. the count will update itself
+
+def term_delete_clear(term_pk):
+    '''
+    Clear cached data on term delete. 
+    Term delete causes recursive deletion, so all base info needs 
+    invalidating.
+    '''
+    assert isinstance(term_pk, int), "Not an integer!"
+    base_pk = BaseTerm.system.base(term_pk)
+    try:
+        del(this._child_cache[base_pk])
+        del(this._count[term_pk])
+    except KeyError:
+      pass
+      
+def element_merge_clear():
+    # demolition, as it will remove from anyplace
+    this._count = {}
+
+def element_remove_clear():
+    # demolition, as it can remove from anyplace
+    this._count = {}
+    
 def clear():
     '''
     Reset all caches.
-    *warning* drastic measures only ...or other general purpose.
+    *hint* drastic measures ...or general purpose.
     '''
     this._base_cache = {}
     this._term_cache = {}
     this._child_cache = {}
     this._parent_cache = {}
+    this._count = {}
 
 def term(base_pk, term_pk):
     '''
@@ -188,7 +242,7 @@ def term(base_pk, term_pk):
     '''
     basepk = int(base_pk)
     _assert_cache(base_pk)
-    return this._term_cache[base_pk].get(int(term_pk))
+    return this._term_cache[base_pk][int(term_pk)]
 
 def term_parent_pks(base_pk, term_pk):
     '''
@@ -322,15 +376,16 @@ def term_descendant_paths(base_pk, term_pk):
               trail.append(children[0])
       return b  
 
-def term_ancestor_pks(term_pk):
+def term_ancestor_pks(base_pk, term_pk):
     '''
     Term ancestor pks.
     No duplicate data in the return set. No useful ordering.
     @return set of ancestor term pks
     '''
-    bpk = BaseTerm.system.base(term_pk)
-    _assert_cache(bpk)
-    pc = this._parent_cache[bpk]
+    assert isinstance(base_pk, int), "Not an integer!"
+    assert isinstance(term_pk, int), "Not an integer!"
+    _assert_cache(base_pk)
+    pc = this._parent_cache[base_pk]
     b = set()
     stack = pc.get(term_pk)
     if (stack):
@@ -345,19 +400,20 @@ def term_ancestor_pks(term_pk):
     return b
     
 #? Not work with -1, because not guess the base?
-def term_descendant_pks(term_pk):
+def term_descendant_pks(base_pk, term_pk):
     '''
     Term descendant pks.
     No duplicate data in the return set. No useful ordering.
     @return set of descendant term pks
     '''
-    bpk = BaseTerm.system.base(term_pk)
-    _assert_cache(bpk)
-    cc = this._child_cache[bpk]
+    assert isinstance(base_pk, int), "Not an integer!"
+    assert isinstance(term_pk, int), "Not an integer!"
+    _assert_cache(base_pk)
+    cc = this._child_cache[base_pk]
     b = set()
-    base = cc.get(term_pk)
-    if (base):
-        stack = list(base)
+    children = cc.get(term_pk)
+    if (children):
+        stack = list(children)
         while (stack):
             tpk = stack.pop()
             children = cc.get(tpk)
@@ -385,3 +441,22 @@ def base_term_pks(base_pk):
                 stack.append(child)
         b.add(tpk)
     return b  
+
+def _term_element_count(term_pk):
+    '''
+    Count of elems on a single term
+    '''
+    assert isinstance(base_pk, int), "Not an integer!"
+    assert isinstance(term_pk, int), "Not an integer!"
+    r = this._count.get[base_pk]
+    if (not r):
+        r = Element.objects.filter(term__exact=term_pk).count()
+        this._count[term_pk] = r
+    return r
+    
+def term_descendant_element_count(term_pk):
+    termpk = int(term_pk)
+    count = _term_element_count(termpk)
+    for tpk in term_descendant_pks(termpk):
+        count = count + term_element_count(tpk)
+    return count

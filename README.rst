@@ -34,12 +34,42 @@ You can only attach data elements to terms, not the 'base'. If you would like a 
   
 etc. now you can attach an unclassified car to the generic term 'cars'.
 
+Requirements
+------------
+None. Not even 'django.contrib.admin'.
 
+Install
+-------
+Put the code inside your project/emvironment.
+
+'settings.py',::
+
+    INSTALLED_APPS = [
+        'taxonomy.apps.TaxonomyConfig',
+        ...
+    ]
+
+Site-wide 'urls.py',::
+
+    urlpatterns = [
+        url(r'^taxonomy/', include('taxonomy.urls')),
+        ...
+    ]
+
+One curiosity. If you look in taxonomy.urls,::
+
+  urlpatterns = site.get_urls()
+
+This wierd method takes an argument,::
+
+  urlpatterns = site.get_urls(site=None)
+
+gives no-permission-required admin. Or use any 'contrib.admin' site you prefer.
+
+ 
 Admin
 -----
-The core models can be maintained through Django admin, but the module includes a non-'admin' based set of forms and views for administration.
-
-These forms are not protected by passwords, nor will be ever ('we are all grown-ups here'). Enable, disable, and protect the URLs as you wish.
+The core models can be maintained through Django admin, but the module uses a non-'admin' based set of forms and views for administration.
 
 The base look of the admin views and forms is similar to Django admin. However, the forms link in a different way, from overview lists to action, treating the app as a coherent whole. Start at http://127.0.0.1:8000/taxonomy and work from there.
 
@@ -98,7 +128,7 @@ Using a Foreign Field in the element model, and Django Admin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 One good reason for using a Foreign Field in element Models is because the taxonomy will integrate seamlessly into Django Admin. All the normal methods for modification and display will work. 
 
-There is an issue; the Taxonomy app holds term data in one big table. Any forms displaying a choice from a fereign key will offer terms from every base. If you wish to limit term selection to one base, you will need to do some extra work (you may like to try one of the Field/Widget combinations below).
+There is an issue; the Taxonomy app holds term data in one big table. Any forms displaying a choice from a foreign key will offer terms from every base. If you wish to limit term selection to one base, you will need to do some extra work (you may like to try one of the Field/Widget combinations below).
 
 I havn't pursued this much, preferring to work on non-integrated admin. Foreign Keys will work well enough as they stand. Sometime...
 
@@ -225,6 +255,20 @@ in template heads. Or the field will not react.
 TODOs
 -----
 SQL and data structure needs a review.
+
+
+Code organisation
+-----------------
+Taxonomy collections are complex beyond their simple models.
+ 
+Only work with the Models if you need to repair or want to play. The models keep '.objects' as the primary model manager. The methods here can damage the collections; make orphans of links, and create circular dependencies. Beyond, each Model adds a second manager called '.system'. These managers contain methods which will maintain the integrity of the collections.
+
+Then there is a module called 'cache'. This is not Django cache, it is maintained by the app to speed some of the actions and provide advanced functionality. It's sensitive.
+
+The 'api' module pulls these parts together in a facade. This is where you would look for code to use in your code. 
+
+
+
 
 A note on implementation
 ------------------------

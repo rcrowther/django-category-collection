@@ -257,6 +257,7 @@ class TermManager(models.Manager):
             c.close()
         return r
   
+  # This, or just is_single?
     #_SQLBase = "SELECT tr.* FROM taxonomy_tree tr, taxonomy_term t WHERE tr.id = t.tree and t.id = %s"
     #def tree(self, termpk):
         #'''
@@ -330,7 +331,7 @@ class BaseTermManager(models.Manager):
     def term_pks(self, base_pk):
       return BaseTerm.objects.filter(base__exact=base_pk).values_list('term', flat=True)
     
-    def base(self, term_pk):
+    def base_pk(self, term_pk):
       o = BaseTerm.objects.get(term__exact=term_pk)
       return o.base
     
