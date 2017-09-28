@@ -581,20 +581,6 @@ def term_title_search(base_pk, pattern=None):
 
 
 #+
-def term_all_select(base_pk):
-    '''
-    All titles from a tree.
-    The titles have a representation of structure by indenting with '-'.    
-    Intended for single parent select boxes.
-
-    @param base_pk int or coercable string
-    @return [(pk, marked title)...]
-    '''
-    tree = terms_flat_tree(base_pk)
-    b = [(TermParent.NO_PARENT, '<root>')]    
-    for e in tree:
-        b.append((e.pk, '-'*e.depth + html.escape(e.title)))  
-    return b
 
       
 #+

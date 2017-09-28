@@ -71,8 +71,12 @@ def base_delete(base_pk):
 def base_ordered():
     return Base.system.ordered()
 
-def base_is_single(base_pk, is_single):
-    return Base.system.is_single(base_pk, is_single)
+def base_terms_ordered(base_pk):
+    return BaseTerm.system.terms_ordered(base_pk)
+    
+def base_set_is_single(base_pk, is_single):
+    cache.base_delete_clear(base_pk)
+    Base.system.set_is_single(base_pk, is_single)
 
 def term_create(base_pk, parent_pks, title, slug, description, weight):
     cache.term_merge_clear(base_pk)
@@ -86,7 +90,7 @@ def term_delete(term_pk):
     cache.term_delete_clear(term_pk)
     return Term.system.delete(term_pk)
 
-#? or a base?
+#? and a base?
 def term_base_pk(term_pk):
     return BaseTerm.system.base_pk(term_pk)
     

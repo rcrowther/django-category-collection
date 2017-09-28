@@ -78,9 +78,9 @@ def _assert_cache(base_pk):
     
     # child cache used as mark for state of other tree cache
     if (base_pk not in this._child_cache):
-        # must come from the databse, not cache :)
+        # value must come from the database, not cache :)
         # made runtime check, not assert, as all kinds of user
-        # interaction ay make it's way here
+        # interaction can make it's way here
         try:
             Base.objects.get(pk__exact=base_pk)
         except Base.DoesNotExist:
@@ -125,7 +125,6 @@ def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
 
     _assert_cache(basepk)
     
-    # not good configuration
     if (not ((parentpk in this._term_cache[basepk]) or (parentpk == TermParent.NO_PARENT))):
         raise KeyError('Flat tree can not be returned because given parent key not in the base: parent key:{0}'.format(parentpk))
         
@@ -423,7 +422,6 @@ def term_descendant_pks(base_pk, term_pk):
             b.add(tpk)
     return b
     
-# base_pks
 def base_term_pks(base_pk):
     '''
     All pks in a base.

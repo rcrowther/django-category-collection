@@ -68,11 +68,11 @@ class TermListView(TemplateView):
         # multiple can not show the structure of the tree
         # (...could if the tree is small, but let's be consistent)
         #term_data_queryset = Term.objects.order_by('weight', 'title').filter(base__exact=tree1.pk).values_list('pk', 'title')
-        term_data_queryset = BaseTerm.system.terms(tree1.pk)
+        term_data_queryset = api.base_terms_ordered(tree1.pk)
         for o in term_data_queryset:
-          pk = o.pk
+          pk = o[0]
           rows.append({
-            'view': link(o.title, reverse('term-preview', args=[pk])),
+            'view': link(o[1], reverse('term-preview', args=[pk])),
             'edit': link('edit', reverse('term-edit', args=[pk]))
           })    
       else:
@@ -97,6 +97,20 @@ class TermListView(TemplateView):
       
       return context
 
+def term_all_select(base_pk):
+    '''
+    All titles from a tree.
+    The titles have a representation of structure by indenting with '-'.    
+    Intended for single parent select boxes.
+
+    @param base_pk int or coercable string
+    @return [(pk, marked title)...]
+    '''
+    tree = api.terms_flat_tree(base_pk)
+    b = [(TermParent.NO_PARENT, '<root>')]    
+    for e in tree:
+        b.append((e.pk, '-'*e.depth + html.escape(e.title)))  
+    return b
 
 def term_exclusive_select(base_pk, term_pk):
     '''
@@ -126,7 +140,7 @@ def form_field_parent_select(base, term_pk=None):
     @return a single or multi-selector field with term widget
     '''
     if (term_pk is None):
-        choices = views.term_all_select(base.pk)
+        choices = term_all_select(base.pk)
     else:
         choices = term_exclusive_select(base.pk, term_pk)
     if (base.is_single):
@@ -597,7 +611,7 @@ def base_delete(request,base_pk):
       
 
 
-def _base_to_singleparent(request, base_pk):
+def _base_to_single_parent(request, base_pk):
       try:
         tm = Base.objects.get(pk__exact=base_pk)
       except Base.DoesNotExist:
@@ -609,9 +623,9 @@ def _base_to_singleparent(request, base_pk):
         
       if (request.method == 'POST'):
           count = TermParent.system.multiple_to_single(tm.pk)
-          Base.system.is_single(tm.pk, True)
-          cache_clear_flat_tree(tm.pk)
-          cache_clear_tree_cache()
+          api.base_set_is_single(tm.pk, True)
+          #cache_clear_flat_tree(tm.pk)
+          #cache_clear_tree_cache()
           msg = tmpl_instance_message("Base is now single parent. Deleted {0} parent(s) in".format(count), tm.title)
           messages.add_message(request, messages.SUCCESS, msg)
           return HttpResponseRedirect(reverse('term-list', args=[tm.pk]))
@@ -632,5 +646,5 @@ def _base_to_singleparent(request, base_pk):
 def base_to_singleparent(request, base_pk):
   # Lock the DB. Found this in admin.
     with transaction.atomic(using=router.db_for_write(TermParent)):
-      return _base_tosingleparent(request, base_pk)
+      return _base_to_single_parent(request, base_pk)
   

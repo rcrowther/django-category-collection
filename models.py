@@ -68,7 +68,7 @@ class BaseManager(models.Manager):
 
         
     _SQLIsSingle = "UPDATE taxonomy_base SET is_single=%s  WHERE id = %s"
-    def is_single(self, base_pk, is_single):
+    def set_is_single(self, base_pk, is_single):
         '''
         Set parent status field.
         Silent operation.
@@ -352,7 +352,7 @@ class BaseTermManager(models.Manager):
       
     #! ordered_terms
     _SQLTree = "SELECT t.id, t.title, t.slug, t.description FROM taxonomy_term t, taxonomy_baseterm bt WHERE bt.base = %s and id = bt.term  ORDER BY t.weight, t.title"
-    def ordered(self, base_pk):
+    def terms_ordered(self, base_pk):
         '''
         terms for a given base.
         The term pks are ordered by weight and title, in that order.
@@ -436,7 +436,8 @@ class TermParentManager(models.Manager):
 
     #! probably not fast, but unimportant?
         #? *
-    _SQLByBase = "SELECT h.term, h.parent FROM taxonomy_termparent h, taxonomy_term t WHERE t.tree = %s and t.id = h.term"
+    #_SQLByBase = "SELECT h.term, h.parent FROM taxonomy_termparent h, taxonomy_term t WHERE t.base = %s and t.id = h.term"
+    _SQLTermByBase = "SELECT h.id, h.term FROM taxonomy_termparent h, taxonomy_baseterm bt WHERE bt.base = %s and bt.term = h.term"
     def multiple_to_single(self, base_pk):
           '''
           Turn a multiparent tree into a single parent tree.
@@ -452,7 +453,7 @@ class TermParentManager(models.Manager):
           c = connection.cursor()
           qs = None
           try:
-              c.execute(self._SQLByBase, [base_pk])
+              c.execute(self._SQLTermByBase, [base_pk])
               qs = list(c.fetchall())
           finally:
               c.close()
@@ -460,7 +461,9 @@ class TermParentManager(models.Manager):
           # build pk list of entries with duplicated term
           seen = []
           duplicate_pks = []
+          print('qs:')
           for e in qs:
+              print(str(e))
               if e[1] in seen:
                   duplicate_pks.append(e[0])
               else:
