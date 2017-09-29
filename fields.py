@@ -92,8 +92,10 @@ class IDTitleAutocompleteField(IntegerField):
 
 class TaxonomyTermField(TypedMultipleChoiceField):
     '''
-    A field to establish element connections to a term in a taxonomy.
+    A field to establish term -> term parent associations in a taxonomy.
     Light adaption establishes a few defaults.
+    Must always be replaced, as it can not handle single-parent trees,
+    but works as a placeholder. 
     '''
     empty_value = -1
     required = False

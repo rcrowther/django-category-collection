@@ -838,115 +838,9 @@ from django.forms.fields import CallableChoiceIterator
 
 
 ###########################
-from .forms import ElementForm
-
-def element_merge(request, term_pk):
-    '''
-    Associate a pk for a foreign element with a term.
-    In english, 'add the id of an item to a category in the trees'.
-    Since the id only is used, there is no data to 'update', so this 
-    method is called 'merge'. If the id is already attached to the term
-    it will not be duplicated.
-    '''
-    # check the term exists
-    try:
-        tm = Term.objects.get(pk__exact=term_pk)
-    except Term.DoesNotExist:
-        msg = "Term with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
-            term_pk
-        )
-        messages.add_message(request, messages.WARNING, msg) 
-        return HttpResponseRedirect(reverse('base-list'))
-
-    if request.method == 'POST':
-        # submitted data, populate
-        f = ElementForm(request.POST)
-
-        ## check whether it's valid:
-        if f.is_valid():
-            Element.system.merge(
-                term_pk=f.cleaned_data['pk'], 
-                element_pk=f.cleaned_data['element']
-                ) 
-            t = term(f.cleaned_data['pk'])
-            msg = tmpl_instance_message("Associated Element Id {0} to Term".format(f.cleaned_data['element']), t.title)
-            messages.add_message(request, messages.SUCCESS, msg)
-            return HttpResponseRedirect(reverse('term-list', args=[t.tree]))
-            
-        else:
-            msg = "Please correct the errors below."
-            messages.add_message(request, messages.ERROR, msg)
-            # falls through to another render
-            
-    else:
-        # empty form for add
-        f = ElementForm(initial=dict(
-          pk = tm.pk,
-          title = tm.title,
-          # set parents to the root (always exists, as an option) 
-          element = 0,
-          ))
-        
-    context={
-    'form': f,
-    'title': 'Add Element',
-    'navigators': [
-      link('Term List', reverse('term-list', args=[tm.tree])),
-      ],
-    'submit': {'message':"Save", 'url': reverse('element-merge', args=[tm.pk])},
-    'actions': [],
-    }
-
-    return render(request, 'taxonomy/generic_form.html', context)
+#from .forms import ElementForm
 
 
-def _element_delete(request, base_pk, element_pk):
-      try:
-        tm = Base.objects.get(pk__exact=base_pk)
-      except Base.DoesNotExist:
-        msg = "Base with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
-            base_pk
-        )
-        messages.add_message(request, messages.WARNING, msg) 
-        return HttpResponseRedirect(reverse('tree-list'))
-        
-      xterms = Element.system.tree_element_terms(tm.pk, element_pk)
-      if (not xterms):
-        msg = "Element with ID '{0}' not attached to any term in Base '{1}'. Perhaps it was deleted?".format(
-            element_pk,
-            html.escape(tm.title)
-        )
-        messages.add_message(request, messages.WARNING, msg) 
-        return HttpResponseRedirect(reverse('tree-list'))
-        
-      if (request.method == 'POST'):
-          #Term.system.delete(tm.pk)
-          Element.system.tree_remove(tm.pk, element_pk)
-          #cache_clear_flat_tree(tm.tree)
-          msg = tmpl_instance_message("Deleted element link", element_pk)
-          messages.add_message(request, messages.SUCCESS, msg)
-          return HttpResponseRedirect(reverse('term-list', args=[tm.pk]))
-      else:
-          message = '<p>Are you sure you want to delete the element link "{0}" from the tree "{1}"?</p><p>The element is attached to terms named {2}</p>'.format(
-            html.escape(element_pk),
-            html.escape(tm.title),
-            html.escape('"' + '", "'.join([t[1] for t in xterms]) + '"')
-            )
-          context={
-            'title': tmpl_instance_message("Delete element link '{0}' from Base".format(element_pk), tm.title),
-            'message': mark_safe(message),
-            'submit': {'message':"Yes, I'm sure", 'url': reverse('element-delete', args=[tm.pk, element_pk])},
-            'actions': [link('No, take me back', reverse("element-merge", args=[tm.pk]), attrs={'class':'"button"'})],
-          } 
-          return render(request, 'taxonomy/delete_confirm_form.html', context)
-
-
-#@csrf_protect_m        
-def element_delete(request, base_pk, element_pk):
-  # Lock the DB. Found this in admin.
-    with transaction.atomic(using=router.db_for_write(Element)):
-      return _element_delete(request, base_pk, element_pk)
-  
 ###
 #from .forms import ElementSearchForm
 
@@ -986,8 +880,32 @@ from django.http import JsonResponse
         #tl = list(tree_term_titles(base_pk))
     #print(str(tl))
     #return JsonResponse(tl, safe=False)
+
+from django.views import View
+
+#! extend with extra descriptions
+#!test they exist
+#! add a queryset
+
+def GenericTitleSearchJSONView(model1, title_field1, case_insensitive1=True):
+    class GenericTitleSearchJSONView(View):
+        model = model1
+        title_field = title_field1
+        case_insensitive = case_insensitive1
     
-    
+        def get(self, request, *args, **kwargs):
+            tl = None
+            pattern = request.GET.get('search')
+            if (pattern is not None):
+                if (self.case_insensitive):
+                    tl = list(self.model.objects.filter(title__istartswith=pattern).values_list('pk', self.title_field))
+                else:
+                    tl = list(self.model.objects.filter(title__startswith=pattern).values_list('pk', self.title_field))
+            else:
+                tl = list(self.model.objects.all().values_list('pk', self.title_field))
+            return JsonResponse(tl, safe=False)
+    return GenericTitleSearchJSONView
+
 #http://127.0.0.1:8000/taxonomy/term_titles_ajax/29/
 def term_title_search_view(request, base_pk):
     tl = None

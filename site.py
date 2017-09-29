@@ -77,8 +77,8 @@ def get_urls(admin_site=site):
         url(r'^term_titles/(?P<base_pk>\d+)$', wrap(views.term_title_search_view), name='term-titles'),
         #url(r'^term_titles_ajax/(?P<base_pk>\d+)$', wrap(views.term_title_search_istartswith_view), name='term-titles-startswith'),
         
-        url(r'^term/(?P<term_pk>\d+)/element/merge/$', wrap(views.element_merge), name='element-merge'),
-        url(r'^base/(?P<base_pk>\d+)/element/(?P<element_pk>\d+)/delete/$', wrap(views.element_delete), name='element-delete'),
+        #url(r'^term/(?P<term_pk>\d+)/element/merge/$', wrap(views.element_merge), name='element-merge'),
+        #url(r'^base/(?P<base_pk>\d+)/element/(?P<element_pk>\d+)/delete/$', wrap(views.element_delete), name='element-delete'),
         
         url(r'^base/(?P<base_pk>\d+)/term/list/$', wrap(TermListView.as_view()), name='term-list'),
         url(r'^base/(?P<base_pk>\d+)/term/add/$', wrap(taxadmin.term_add), name='term-add'),

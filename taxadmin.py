@@ -11,7 +11,7 @@ from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import render
 from . import api
 #? only for select choices?
-from. import views
+#from. import views
 from django.forms import TypedChoiceField, TypedMultipleChoiceField
 
 #! work to do deleteView etc?
@@ -389,7 +389,6 @@ def _term_delete(request, term_pk):
 
 #@csrf_protect_m        
 def term_delete(request, pk):
-  # Lock the DB. Found this in admin.
     with transaction.atomic(using=router.db_for_write(Term)):
       return _term_delete(request, pk)
   
@@ -604,7 +603,6 @@ def _base_delete(request, base_pk):
 
 #@csrf_protect_m  
 def base_delete(request,base_pk):
-    # Lock the DB. Found this in admin.
     #? lock what? How?
     with transaction.atomic(using=router.db_for_write(Base)):
       return _base_delete(request, base_pk)
@@ -624,8 +622,6 @@ def _base_to_single_parent(request, base_pk):
       if (request.method == 'POST'):
           count = TermParent.system.multiple_to_single(tm.pk)
           api.base_set_is_single(tm.pk, True)
-          #cache_clear_flat_tree(tm.pk)
-          #cache_clear_tree_cache()
           msg = tmpl_instance_message("Base is now single parent. Deleted {0} parent(s) in".format(count), tm.title)
           messages.add_message(request, messages.SUCCESS, msg)
           return HttpResponseRedirect(reverse('term-list', args=[tm.pk]))
@@ -644,7 +640,6 @@ def _base_to_single_parent(request, base_pk):
 
 #@csrf_protect_m        
 def base_to_singleparent(request, base_pk):
-  # Lock the DB. Found this in admin.
     with transaction.atomic(using=router.db_for_write(TermParent)):
       return _base_to_single_parent(request, base_pk)
   

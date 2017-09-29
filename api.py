@@ -48,9 +48,6 @@ def base_term_pks(base_pk):
 
 def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=cache.FULL_DEPTH):
     return cache.terms_flat_tree(base_pk, parent_pk, max_depth)
-    
-
-
 
 def cache_clear():
     return cache.clear()
