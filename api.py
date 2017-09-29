@@ -94,12 +94,20 @@ def term_base_pk(term_pk):
 #def term_title_search(base_pk, pattern):
 #    return Term.system.title_search(base_pk, pattern)
     
-def element_merge(term_pks, element_pk):
-    cache.element_merge_clear(term_pks)
-    return Element.system.merge(term_pks, element_pk)
+def element_add(term_pk, element_pk):
+    cache.element_clear_term(term_pk)
+    return Element.system.add(term_pk, element_pk)
+         
+def element_delete(term_pk, element_pk):
+    cache.element_clear_term(term_pk)
+    return Element.system.delete(term_pk, element_pk)
+
+def element_bulk_merge(term_pks, element_pk):
+    cache.element_clear_all()
+    return Element.system.bulk_merge(term_pks, element_pk)
             
-def element_delete(base_pk, element_pks):
-    cache.element_remove_clear()
+def element_base_delete(base_pk, element_pks):
+    cache.element_clear_all()
     return Element.system.delete(base_pk, element_pks)
     
 def element_terms(base_pk, element_pk): 

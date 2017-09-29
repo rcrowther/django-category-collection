@@ -210,14 +210,19 @@ def term_delete_clear(term_pk):
         del(this._count[term_pk])
     except KeyError:
       pass
-      
-def element_merge_clear():
-    # demolition, as it will remove from anyplace
+
+def element_clear_term(term_pk):
+    try:
+      del(this._count[term_pk])
+    except KeyError:
+      pass
+       
+def element_clear_all():
     this._count = {}
 
-def element_remove_clear():
+#def element_clear_tree(tree_pk):
     # demolition, as it can remove from anyplace
-    this._count = {}
+    #this._count = {}
     
 def clear():
     '''
@@ -444,9 +449,8 @@ def _term_element_count(term_pk):
     '''
     Count of elems on a single term
     '''
-    assert isinstance(base_pk, int), "Not an integer!"
     assert isinstance(term_pk, int), "Not an integer!"
-    r = this._count.get[base_pk]
+    r = this._count.get[term_pk]
     if (not r):
         r = Element.objects.filter(term__exact=term_pk).count()
         this._count[term_pk] = r
@@ -456,5 +460,5 @@ def term_descendant_element_count(term_pk):
     termpk = int(term_pk)
     count = _term_element_count(termpk)
     for tpk in term_descendant_pks(termpk):
-        count = count + term_element_count(tpk)
+        count = count + term_element_count(termpk)
     return count

@@ -474,9 +474,7 @@ class TermParentManager(models.Manager):
           # build pk list of entries with duplicated term
           seen = []
           duplicate_pks = []
-          print('qs:')
           for e in qs:
-              print(str(e))
               if e[1] in seen:
                   duplicate_pks.append(e[0])
               else:
@@ -534,7 +532,17 @@ class TermParent(models.Model):
 class ElementManager(models.Manager):
     #_SQLCreate = "INSERT INTO taxonomy_termnode VALUES (null, %s, %s, %s)"
     #_SQLDeleteElement = "DELETE FROM taxonomy_termnode WHERE term_id = %s and elem = %s"
-    def merge(self, term_pks, element_pk):
+
+    def add(self, term_pk, element_pk):
+        self.delete(term_pk, element_pk)
+        o = Element(term=term_pk, elem=element_pk)
+        o.save()
+        return o 
+
+    def delete(self, term_pk, element_pk):
+        Element.objects.filter(term__exact=term_pk, elem__exact=element_pk).delete()
+
+    def bulk_merge(self, term_pks, element_pk):
         '''
         Create/update an element attachment to terms.
         '''
@@ -552,7 +560,7 @@ class ElementManager(models.Manager):
 
   
   
-    def delete(self, base_pk, element_pks):
+    def base_delete(self, base_pk, element_pks):
         '''
         Remove elements from a base. 
         '''

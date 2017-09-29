@@ -141,12 +141,6 @@ The below methods, except for the note about code, add a 'select' box to an admi
 
 As we will see further on, other more scaleable widgets are available.
 
-For GUI forms, use the form at
-
-taxonomy/term/(?P<term_pk>\d+)/element/merge/
-
-
-
 
 
 An admin form, fully broken out
@@ -210,6 +204,32 @@ from taxonomy.modeladmin import WithTaxonomyAdmin
 Now this admin form will show a field where instances of the model can be attached and detached from taxonomy terms. 
 
 This code is naturally DRY. It also behaves, for all other customisation, like a ModelAdmin form. Still, there is more... [TODO: not figured out if this can be done yet]
+
+
+Another way, there is
+++++++++++++++++++++++
+This far, we have put a the options onto the element form itself. This seems intuitive and efficient. Mostly. But if your users pass much time categorising content, or categorise in bulk, then there is a different approach to the joining of elements to terms, which is to provide a seperate form (in truth, this only a start on the possibilities. Do you attach elements to multiple terms, or multiple terms to elements? How about one central form to rule them all? But, for now...).
+
+The app contains a suggestion about how you could start. It may be good for some situations. The solution is as minimal as I could concieve. It currently uses two AJAXing HTML inputs (described down a bit).
+
+Go into the app for the model you want to attach to a taxonomy, then to urls.py, and add,::
+    
+    from taxonomy import element
+    from .models import Birds
+  
+Birds is the name of the model; 'urls.py' often contains this import. Then add this to the urlpatterns,::
+
+    urlpatterns = [
+        ...
+    ] + element.get_urls(model=Birds, base_pk=12, navigation_links=[])
+  
+'Birds' is the name of the model, again. 'base_pk' identifies a taxonomy base. Ignore 'navigation_links', it's a rendering detail.
+
+That's it. The only new URL you care about is at,::
+
+    birds/taxonomy/add-delete
+
+where two auto-complete input boxes allow a user to connect and disconnect 'Birds' (in this case) from taxonomy base 12 (in this case). 
 
 
 Fields and Widgets
