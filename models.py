@@ -219,8 +219,21 @@ class TermManager(models.Manager):
             c.close()
         return r
 
+    _SQLTermTitleSearch = "SELECT t.id, t.title, t.description FROM taxonomy_term t, taxonomy_baseterm bt WHERE bt.base = %s and t.title LIKE %s and t.id = bt.term ORDER BY t.weight, t.title"
+    def title_search(self, base_pk, pattern):
+        '''
+        Insensitive title search for term titles in a given base.
+        The term pks are ordered by weight and title, in that order.
+        @return [(t.pk, t.title, t.description), ...]
+        '''      
+        c = connection.cursor()
+        try:
+            c.execute(self._SQLTermTitleSearch, [base_pk, pattern + '%'])
+            r = [e for e in c.fetchall()]
+        finally:
+            c.close()
+        return r
 
-          
     #- usused, should not be here?
     _SQLParents = "SELECT t.id, t.title, t.slug, t.description FROM taxonomy_term t, taxonomy_termparent h WHERE t.id = h.parent and h.term = %s ORDER BY t.weight, t.title"
     def parents_ordered(self, term_pk):

@@ -565,21 +565,6 @@ this = sys.modules[__name__]
 # Move to a plugin views?
 
 
-#! term_title_search
-def term_title_search(base_pk, pattern=None):
-    '''
-    Get term pk/titles in a tree
-    Case insensitive. 
-    @ pattern if given, only titles starting with this pattern are included 
-    @return list of term data tuples (pk, title, description)
-    '''
-    # mainly for JSON admin when choosing terms
-    if (pattern is not None):
-        return Term.objects.filter(base__exact=base_pk, title__istartswith=pattern).values_list('pk', 'title', 'description')
-    else:
-        return Term.objects.filter(base__exact=base_pk).values_list('pk', 'title', 'description')
-
-
 #+
 
       
@@ -885,8 +870,7 @@ from django.views import View
 
 #! extend with extra descriptions
 #!test they exist
-#! add a queryset
-
+#! add a queryset. or pk set?
 def GenericTitleSearchJSONView(model1, title_field1, case_insensitive1=True):
     class GenericTitleSearchJSONView(View):
         model = model1
@@ -906,11 +890,27 @@ def GenericTitleSearchJSONView(model1, title_field1, case_insensitive1=True):
             return JsonResponse(tl, safe=False)
     return GenericTitleSearchJSONView
 
+
+#! term_title_search
+#def term_title_search(base_pk, pattern=None):
+    #'''
+    #Get term pk/titles in a tree
+    #Case insensitive. 
+    #@ pattern if given, only titles starting with this pattern are included 
+    #@return list of term data tuples (pk, title, description)
+    #'''
+    ## mainly for JSON admin when choosing terms
+    #if (pattern is not None):
+        #return Term.objects.filter(base__exact=base_pk, title__istartswith=pattern).values_list('pk', 'title', 'description')
+    #else:
+        #return Term.objects.filter(base__exact=base_pk).values_list('pk', 'title', 'description')
+
+#? could use base_term_pks from cache ?
 #http://127.0.0.1:8000/taxonomy/term_titles_ajax/29/
 def term_title_search_view(request, base_pk):
     tl = None
     if request.method == 'GET':
-        tl = list(term_title_search(base_pk, request.GET.get('search')))
+        tl = list(Term.system.title_search(base_pk, request.GET.get('search')))
     return JsonResponse(tl, safe=False)
 
 
@@ -931,7 +931,7 @@ class ElementSearchForm(forms.Form):
       help_text="Title of an element to be categorised."
       )
 
-    def __init__(self, base_pk, *args, **kwargs):
+    def __init__(self,  *args, **kwargs):
       super().__init__(*args, **kwargs)
 
 

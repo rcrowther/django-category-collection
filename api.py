@@ -91,6 +91,9 @@ def term_delete(term_pk):
 def term_base_pk(term_pk):
     return BaseTerm.system.base_pk(term_pk)
     
+#def term_title_search(base_pk, pattern):
+#    return Term.system.title_search(base_pk, pattern)
+    
 def element_merge(term_pks, element_pk):
     cache.element_merge_clear(term_pks)
     return Element.system.merge(term_pks, element_pk)

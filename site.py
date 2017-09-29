@@ -74,8 +74,8 @@ def get_urls(admin_site=site):
         #? Nothing is cacheable
         url(r'^element/(?P<element_pk>\d+)$', wrap(views.element_link), name='element-link'),
         #url(r'^element/(?P<element_pk>\d+)$', wrap(ElementSearchView.as_view()), name='element-link'),
-        url(r'^term_titles/(?P<base_pk>\d+)$', wrap(views.term_title_search_view), name='term-titles'),
-        #url(r'^term_titles_ajax/(?P<base_pk>\d+)$', wrap(views.term_title_search_istartswith_view), name='term-titles-startswith'),
+        #url(r'^term_titles/(?P<base_pk>\d+)$', wrap(views.term_title_search_view), name='term-titles'),
+        url(r'^base/(?P<base_pk>\d+)/term_titles/json/search$', wrap(views.term_title_search_view), name='term-titles-startswith-json'),
         
         #url(r'^term/(?P<term_pk>\d+)/element/merge/$', wrap(views.element_merge), name='element-merge'),
         #url(r'^base/(?P<base_pk>\d+)/element/(?P<element_pk>\d+)/delete/$', wrap(views.element_delete), name='element-delete'),

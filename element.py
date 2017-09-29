@@ -8,18 +8,24 @@ from .api import terms_flat_tree, element_terms, base
 
 
 from django import forms
-from . import fields
+from django.urls import reverse
+from django.contrib import messages
 
+from . import fields
+from .taxadmin import tmpl_instance_message, link
+from .views import GenericTitleSearchJSONView
 
 class ElementForm(forms.Form):
     '''
     Associate elements with taxonomy terms
     '''
     term_pk = fields.IDTitleAutocompleteField(label='Term', min_value=0,
+      ajax_href='bluh',
       help_text="Id of a category for an element."
       )
       
     element_pk = fields.IDTitleAutocompleteField(label='Element Id', min_value=0,
+      ajax_href='grab',
       help_text="Id of an element to be categorised."
       )
 
@@ -28,19 +34,60 @@ class ElementForm(forms.Form):
 
 from django.views.generic.edit import FormView
 
-class ElementView(FormView):
-    template_name = 'taxonomy/generic_form.html'
-    form_class = ElementForm
-    success_url = '/thanks/'
+def ElementView(base_pk, element_title_url, ok_url):
+    class ElementView(FormView):
+        template_name = 'taxonomy/formview_form.html'
+        form_class = ElementForm
+        success_url = ok_url
+        
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
 
-    def form_valid(self, form):
-        # This method is called when valid form data has been POSTed.
-        # It should return an HttpResponse.
-        
-        msg = tmpl_instance_message("Associated Element Id {0} to Term".format(f.cleaned_data['element']), t.title)
-        messages.add_message(request, messages.SUCCESS, msg)
-        return super().form_valid(form)
-        
+        def get_form(self, form_class=None):
+            f = super().get_form(form_class)
+            f.fields['term_pk'].widget = fields.IDTitleAutocompleteInput('/taxonomy/base/'  + str(base_pk) + '/term_titles/json/search')
+            # element URL is sensitive
+            #? ensure absolute? but I don't like it?
+            # add the name?
+            f.fields['element_pk'].widget = fields.IDTitleAutocompleteInput(element_title_url)
+            return f
+            
+        def get_context_data(self, **kwargs):
+            context = super().get_context_data(**kwargs)
+            context['media'] = context['form'].media
+            print('contx:')
+            print(str(context['view']))
+                
+            context.update({
+            'title': 'Add or reposition Elements',
+            'navigators': [
+              #link('Main List', reverse('term-list', args=[tm.tree])),
+              ],
+            'submit': {'message':"Save", 'url': reverse('taxonomy-link-merge')},
+            'actions': [],
+            })    
+            return context
+             
+        def form_valid(self, form):
+            # This method is called when valid form data has been POSTed.
+            # It should return an HttpResponse.
+            msg = tmpl_instance_message("Associated Element Id {0} to Term".format(form.cleaned_data['element_pk']), form.cleaned_data['term_pk'])
+            messages.add_message(self.request, messages.SUCCESS, msg)
+            return super().form_valid(form)
+    return ElementView
+
+from django.conf.urls import url
+
+def get_urls(model, base_pk):
+    element_name = model._meta.model_name
+    title_url = '/' + element_name + '/titles/json/search'
+    ev = ElementView(base_pk=base_pk, element_title_url=title_url, ok_url='/' + element_name +'/taxonomy/elements_merge')
+    urls = [
+        url(r'^taxonomy/elements_merge$', ev.as_view(), name='taxonomy-link-merge'),
+        url(r'^titles/json/search$', GenericTitleSearchJSONView(model, 'title').as_view(), name='paper-titles-json'),
+    ]
+    return urls
+      
 def merge(request, base_pk):
     '''
     Associate a pk for a foreign element with a term.
