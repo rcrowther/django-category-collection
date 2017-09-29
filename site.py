@@ -72,7 +72,7 @@ def get_urls(admin_site=site):
     urls = [
         # Order is important, actions before slugs
         #? Nothing is cacheable
-        url(r'^element/(?P<element_pk>\d+)$', wrap(views.element_link), name='element-link'),
+        #url(r'^element/(?P<element_pk>\d+)$', wrap(views.element_link), name='element-link'),
         #url(r'^element/(?P<element_pk>\d+)$', wrap(ElementSearchView.as_view()), name='element-link'),
         #url(r'^term_titles/(?P<base_pk>\d+)$', wrap(views.term_title_search_view), name='term-titles'),
         url(r'^base/(?P<base_pk>\d+)/term_titles/json/search$', wrap(views.term_title_search_view), name='term-titles-startswith-json'),

@@ -12,9 +12,10 @@ from django.urls import reverse
 from django.contrib import messages
 
 from . import fields
-from .taxadmin import tmpl_instance_message, link, submit
 from .views import GenericTitleSearchJSONView
 from . import api
+from .inlinetemplates import link, submit, tmpl_instance_message
+
 
 class ElementForm(forms.Form):
     '''

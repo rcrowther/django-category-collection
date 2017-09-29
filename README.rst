@@ -281,11 +281,11 @@ Code organisation
 -----------------
 Taxonomy collections are complex beyond their simple models.
  
-Only work with the Models if you need to repair or want to play. The models keep '.objects' as the primary model manager. The methods here can damage the collections; make orphans of links, and create circular dependencies. Beyond, each Model adds a second manager called '.system'. These managers contain methods which will maintain the integrity of the collections.
+Only work with the Models if you need to repair or want to play. The models keep '.objects' as the primary model manager. The methods can damage the collections; make orphans of links and create circular dependencies. Beyond, each Model adds a second manager called '.system'. These managers contain methods which will maintain the integrity of the collections.
 
-Then there is a module called 'cache'. This is not Django cache, it is maintained by the app to speed some of the actions and provide advanced functionality. It's sensitive.
+Next is a module called 'cache'. This is not Django cache, it is maintained by the app to speed some of the actions and provide interesting functionality. It's sensitive.
 
-The 'api' module pulls these parts together in a facade. This is where you would look for code to use in your code. 
+The 'api' module pulls these parts together in a facade. This is where you would look for methods to use in your code. 
 
 
 
