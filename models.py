@@ -558,18 +558,16 @@ class ElementManager(models.Manager):
             elements.append(Element(tpk, element_pk))     
         Element.objects.bulk_create(elements)
 
-  
-  
     def base_delete(self, base_pk, element_pks):
         '''
         Remove elements from a base. 
         '''
-        term_pks = BaseTerm.system.term_pks(base_pk)
+        term_pks = list(BaseTerm.system.term_pks(base_pk))
         if(isinstance(element_pks, list)):
-            Element.objects.filter(term__in=term_pks, elem__in=element_pks).delete()
+            r = Element.objects.filter(term__in=term_pks, elem__in=element_pks).delete()
         else:
-            Element.objects.filter(term__in=term_pks, elem__exact=element_pks).delete()
-  
+            r = Element.objects.filter(term__in=term_pks, elem__exact=element_pks).delete()
+        return r
     #? any need to order here?
     #? *
     _SQLElementTerms = "SELECT t.id, t.title, t.slug, t.description FROM taxonomy_term t, taxonomy_element te, taxonomy_baseterm bt WHERE bt.term = te.term and bt.base = %s and t.id = te.term and te.elem = %s ORDER BY t.weight, t.title"
@@ -606,11 +604,6 @@ class ElementManager(models.Manager):
 #! must disallow duplicate pks on terms
 class Element(models.Model):
     
-    #tree = models.IntegerField(
-      #db_index=True,
-      #help_text="A Base associated with an element.",
-      #)
-      
     term = models.IntegerField(
       Term,
       help_text="A Term associated with an element.",

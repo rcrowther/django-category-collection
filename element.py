@@ -10,6 +10,7 @@ from .api import terms_flat_tree, element_terms, base
 from django import forms
 from django.urls import reverse
 from django.contrib import messages
+from django.forms import TypedChoiceField, TypedMultipleChoiceField
 
 from . import fields
 from .views import GenericTitleSearchJSONView
@@ -275,22 +276,45 @@ def term_choice_value(base_pk, model_instance):
         return [t[0] for t in xt]
 
 
-def form_set_select(form, taxonomy_field_name, base_pk, instance):
+def form_set_select(form, taxonomy_field_name, base_pk, instance=None):
+    '''
+    @return a single or multi-selector field with choices. Widget is
+    a default HTML 'select'.
+    '''
     assert base(base_pk) is not None, "base_pk can not be found: base_pk:{0}".format(base_pk)
+    bm = api.base(base_pk)
+    if (bm.is_single):
+      field = TypedChoiceField(
+      #choices = choices,
+      coerce=lambda val: int(val), 
+      empty_value=-2,
+      label='Taxonomy',
+      help_text="Choose a term to parent this item"
+      )
+    else:
+      field = TypedMultipleChoiceField(
+      #choices = choices,
+      coerce=lambda val: int(val), 
+      empty_value=-2,
+      label='Taxonomy',
+      help_text="Choose a term to parent this item"
+      )
+    form.fields[taxonomy_field_name] = field
     form.fields[taxonomy_field_name].choices = term_choices(base_pk)
     form.initial[taxonomy_field_name] = term_choice_value(base_pk, instance)
-        
         
 def save(form, taxonomy_field_name, base_pk, obj):
     assert base(base_pk) is not None, "base_pk can not be found: base_pk:{0}".format(base_pk)
     taxonomy_terms = form.cleaned_data.get(taxonomy_field_name)
     if(taxonomy_terms is None):
         raise KeyError('Unable to find clean data for taxonomy parenting: field_name : {0}'.format(base_pk))
-    if ('-2' in taxonomy_terms):
-        Element.system.bulk_delete(base_pk, obj.pk)
+    if (not isinstance(taxonomy_terms, list)):
+        taxonomy_terms = [taxonomy_terms]
+    if (-2 in taxonomy_terms):
+        Element.system.base_delete(base_pk, obj.pk)
     else:
         Element.system.bulk_merge(taxonomy_terms, obj.pk)
 
 def remove(base_pk, obj):
     assert base(base_pk) is not None, "base_pk can not be found: tree_pk:{0}".format(base_pk)
-    Element.system.bulk_delete(base_pk, obj.pk) 
+    Element.system.base_delete(base_pk, obj.pk) 
