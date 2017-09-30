@@ -305,14 +305,13 @@ def form_set_select(form, taxonomy_field_name, base_pk, instance=None):
         
 def save(form, taxonomy_field_name, base_pk, obj):
     assert base(base_pk) is not None, "base_pk can not be found: base_pk:{0}".format(base_pk)
+    Element.system.base_delete(base_pk, obj.pk)
     taxonomy_terms = form.cleaned_data.get(taxonomy_field_name)
     if(taxonomy_terms is None):
         raise KeyError('Unable to find clean data for taxonomy parenting: field_name : {0}'.format(base_pk))
     if (not isinstance(taxonomy_terms, list)):
         taxonomy_terms = [taxonomy_terms]
-    if (-2 in taxonomy_terms):
-        Element.system.base_delete(base_pk, obj.pk)
-    else:
+    if (-2 not in taxonomy_terms):
         Element.system.bulk_merge(taxonomy_terms, obj.pk)
 
 def remove(base_pk, obj):
