@@ -54,15 +54,15 @@ def cache_clear():
 
 ## Model-based
 def base_create(title, slug, description, is_single, weight):
-    cache.base_merge_clear()
+    cache.base_clear()
     return Base.system.create(title, slug, description, is_single, weight)
     
 def base_update(base_pk, title, slug, description, is_single, weight):
-    cache.base_merge_clear()
+    cache.base_clear()
     return Base.system.update(base_pk, title, slug, description, is_single, weight)
 
 def base_delete(base_pk):
-    cache.base_delete_clear(base_pk)
+    cache.base_and_term_tree_clear(base_pk)
     return Base.system.delete(base_pk)
 
 def base_ordered():
@@ -72,19 +72,19 @@ def base_terms_ordered(base_pk):
     return BaseTerm.system.terms_ordered(base_pk)
     
 def base_set_is_single(base_pk, is_single):
-    cache.base_delete_clear(base_pk)
+    cache.base_and_term_tree_clear(base_pk)
     Base.system.set_is_single(base_pk, is_single)
 
 def term_create(base_pk, parent_pks, title, slug, description, weight):
-    cache.term_merge_clear(base_pk)
+    cache.tree_parentage_clear(base_pk)
     return Term.system.create(base_pk, parent_pks, title, slug, description, weight)
 
 def term_update(parent_pks, term_pk, title, slug, description, weight):
-    cache.term_merge_clear(term_base_pk(term_pk))
+    cache.tree_parentage_clear(term_base_pk(term_pk))
     return Term.system.update(parent_pks, term_pk, title, slug, description, weight)
       
 def term_delete(term_pk):
-    cache.term_delete_clear(term_pk)
+    cache.term_tree_clear(term_pk)
     return Term.system.delete(term_pk)
 
 #? and a base?
@@ -113,8 +113,6 @@ def element_base_delete(base_pk, element_pks):
 def element_terms(base_pk, element_pk): 
     return Element.system.terms(base_pk, element_pk)
 
-# how about elements in terms?
-# this ok?
 def term_elements( term_pk, model): 
     pks = Element.objects.filter(term_pk)
     return model.objects.filter(pk__in=pks)

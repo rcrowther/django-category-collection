@@ -14,6 +14,9 @@ this = sys.modules[__name__]
 
 class AllQueryCache():
     '''
+    This tiny class has a trick, it bulkloads on startup and clear_all().
+    Neater and (depends on the efficiency of the supplied callback)
+    maybe a lot faster. 
     @param bulk_load_callback a value
     @param single_load_callback [(k,v)...]. Key is converted to int
     '''
@@ -22,7 +25,7 @@ class AllQueryCache():
         self.bulk_load_callback = bulk_load_callback
         self.single_load_callback = single_load_callback
         self.bulk_load()
-        
+    
     def get(self, pk):
         assert isinstance(pk, int), "Not an integer!"
         r = self.cache.get(pk)
@@ -50,7 +53,10 @@ class AllQueryCache():
     def clear_all(self):
         self.cache = {}
         self.bulk_load()
-        
+    
+    def contains(self, pk):
+        return (pk in self.cache)
+            
     def __str__(self):
         return str(self.cache)
         
@@ -65,9 +71,9 @@ def base(base_pk):
     @return a Base, or None
     '''
     if (not this._base_cache):
-        xt = Base.objects.all()
-        for t in xt:
-           this._base_cache[int(t.pk)] = t
+        xb = Base.objects.all()
+        for b in xb:
+           this._base_cache[int(b.pk)] = b
     return this._base_cache[int(base_pk)]
 
 
@@ -79,15 +85,33 @@ this._parent_cache = {}
 
 # cache of term data
 # {tree_id: [{term_id:Term...}]}
-this._term_cache = {}
+#this._term_cache = {}
 
 # cache of term counts
 # {term_id: count}
-this._count = {}
+#this._count = {}
 
 # storage tuple
 TermFTData = namedtuple('TermFTData', ['pk', 'title', 'slug', 'description', 'depth'])
 
+
+
+def _one_term(pk):
+    return Term.objects.get(pk__exact=pk)
+
+def _all_terms():
+    r = Term.objects.all()
+    b = []
+    for t in r:
+        b.append((t.pk, t))
+    return b 
+
+this._term_cache = AllQueryCache(
+    _all_terms,
+    _one_term
+    )
+
+##
 
 def _cache_populate(base_pk, e):  
     assert isinstance(base_pk, int), "Not an integer!"
@@ -105,6 +129,8 @@ def _cache_populate(base_pk, e):
 
 def to_str():
     b = []
+    b.append('base cache:')
+    b.append(str(this._base_cache))
     b.append('child_cache:')
     b.append(str(this._child_cache))
     b.append('parent_cache:')
@@ -140,10 +166,10 @@ def _assert_cache(base_pk):
               _cache_populate(base_pk, h)
               
           # populate term data
-          this._term_cache[base_pk] = {}
-          tc = this._term_cache[base_pk]
-          for t in BaseTerm.system.term_iter(base_pk):
-              tc[t.pk] = t
+          #this._term_cache[base_pk] = {}
+          #tc = this._term_cache[base_pk]
+          #for t in BaseTerm.system.term_iter(base_pk):
+          #    tc[t.pk] = t
     
 
 FULL_DEPTH = None
@@ -169,13 +195,15 @@ def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
 
     _assert_cache(basepk)
     
-    if (not ((parentpk in this._term_cache[basepk]) or (parentpk == TermParent.NO_PARENT))):
+    #if (not (parentpk in this._term_cache) or (parentpk == TermParent.NO_PARENT))):
+    if (not (this._term_cache.contains(parentpk) or (parentpk == TermParent.NO_PARENT))):
         raise KeyError('Flat tree can not be returned because given parent key not in the base: parent key:{0}'.format(parentpk))
         
     # jump access to these caches
     children = this._child_cache[basepk]
     parents = this._parent_cache[basepk]
-    term_data = this._term_cache[basepk]
+    #term_data = this._term_cache[basepk]
+    term_data = this._term_cache
     _max_depth = (len(children) + 1) if (max_depth is None) else max_depth
     if ((_max_depth < 1) or (parentpk not in children)):
         # if depth == 0 this is an empty list. Also...
@@ -195,7 +223,7 @@ def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
             except StopIteration:
                 # exhausted. Pop another iter at a previous depth
                 break
-            td = term_data[pk]
+            td = term_data.get(pk)
             tree.append(TermFTData(pk, td.title, td.slug, td.description, depth))
             child_pks = children.get(pk)
             if (child_pks and (depth < _max_depth)):
@@ -207,8 +235,7 @@ def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
     return tree
 
 
-
-def base_merge_clear():
+def base_clear():
     '''
     Clear cached data on base create or update. 
     For create or update on a Base. There is no need to touch other
@@ -216,7 +243,14 @@ def base_merge_clear():
     '''
     this._base_cache = {}
 
-def base_delete_clear(base_pk):
+def tree_parentage_clear(base_pk):
+    assert isinstance(base_pk, int), "Not an integer!"
+    try:
+        del(this._child_cache[base_pk])
+    except KeyError:
+      pass
+      
+def base_and_term_tree_clear(base_pk):
     '''
     Clear cached data on base delete.
     '''
@@ -228,48 +262,35 @@ def base_delete_clear(base_pk):
       pass
     # demolition, unless we recover deleted terms?
     #this._count = {}
+    this._term_cache.clear_all()
     this._count.clear_all()
 
-def term_merge_clear(base_pk):
-    '''
-    Clear cached data on term create or update. 
-    Tree info needs invalidating.
-    '''
-    assert isinstance(base_pk, int), "Not an integer!"
-    try:
-        del(this._child_cache[base_pk])
-    except KeyError:
-        pass
-    #N.B. the count will update itself
-
-def term_delete_clear(term_pk):
+def term_tree_clear(term_pk):
     '''
     Clear cached data on term delete. 
     Term delete causes recursive deletion, so all base info needs 
     invalidating.
     '''
     assert isinstance(term_pk, int), "Not an integer!"
-    base_pk = BaseTerm.system.base(term_pk)
+    base_pk = BaseTerm.system.base_pk(term_pk)
     try:
         del(this._child_cache[base_pk])
         #del(this._count[term_pk])
     except KeyError:
       pass
+    this._term_cache.clear_all()
     this._count.clear_all()
 
 def element_clear_term(term_pk):
-    #try:
-    #  del(this._count[term_pk])
-    #except KeyError:
-    #  pass
     this._count.clear_one(term_pk)
-       
-def element_clear_all():
-    this._count.clear_all()
 
+#+       
 #def element_clear_tree(tree_pk):
     # demolition, as it can remove from anyplace
     #this._count = {}
+
+def element_clear_all():
+    this._count.clear_all()
     
 def clear():
     '''
@@ -277,10 +298,11 @@ def clear():
     *hint* drastic measures ...or general purpose.
     '''
     this._base_cache = {}
-    this._term_cache = {}
+    #this._term_cache = {}
     this._child_cache = {}
     this._parent_cache = {}
     #this._count = {}
+    this._term_cache.clear_all()
     this._count.clear_all()
 
 def term(base_pk, term_pk):
@@ -292,9 +314,10 @@ def term(base_pk, term_pk):
     @param term_pk int or int-coercable string 
     @return a term.
     '''
-    basepk = int(base_pk)
-    _assert_cache(base_pk)
-    return this._term_cache[base_pk][int(term_pk)]
+    #basepk = int(base_pk)
+    #_assert_cache(base_pk)
+    #return this._term_cache[base_pk][int(term_pk)]
+    return this._term_cache.get(term_pk)
 
 def term_parent_pks(base_pk, term_pk):
     '''
@@ -311,7 +334,8 @@ def term_parents(base_pk, term_pk):
     @return list of terms. Ordered by weight and then title.
     '''
     pks = term_parent_pks(base_pk, term_pk)
-    return [this._term_cache[int(base_pk)][pk] for pk in pks]
+    #return [this._term_cache[int(base_pk)][pk] for pk in pks]
+    return [this._term_cache.get(pk) for pk in pks]
   
 def term_child_pks(base_pk, term_pk):
     '''
@@ -327,7 +351,8 @@ def term_children(base_pk, term_pk):
     @return list of term objects. Ordered by weight and then title.
     ''' 
     pks = term_child_pks(base_pk, term_pk)
-    return [this._term_cache[int(base_pk)][pk]  for pk in pks]
+    #return [this._term_cache[int(base_pk)][pk]  for pk in pks]
+    return [this._term_cache.get(pk)  for pk in pks]
 
 def term_ancestor_paths(base_pk, term_pk):
     '''
@@ -347,7 +372,8 @@ def term_ancestor_paths(base_pk, term_pk):
 
     # clean accessors
     parentc = this._parent_cache[basepk]
-    term_data = this._term_cache[basepk]
+    #term_data = this._term_cache[basepk]
+    term_data = this._term_cache
     
     parents = parentc.get(int(term_pk))
     if (parents is None):
@@ -369,7 +395,7 @@ def term_ancestor_paths(base_pk, term_pk):
                   # pop the delimiting -1 from the trail end.
                   trail.pop()
                   # build data for the pks
-                  dt = [term_data[pk] for pk in trail]
+                  dt = [term_data.get(pk) for pk in trail]
                   b.append(dt)
                   break
               parents = parentc[head]
@@ -400,7 +426,8 @@ def term_descendant_paths(base_pk, term_pk):
 
     # clean accessors
     childc = this._child_cache[basepk]
-    termc = this._term_cache[basepk]
+    #termc = this._term_cache[basepk]
+    termc = this._term_cache
     
     children = childc.get(int(term_pk))
     if (children is None):
@@ -418,7 +445,7 @@ def term_descendant_paths(base_pk, term_pk):
               if (children is None):
                   # completed a trail
                   # build data for the pks
-                  dt = [termc[pk] for pk in trail]
+                  dt = [termc.get(pk) for pk in trail]
                   b.append(dt)
                   break
               # children[1:]; stash a copy of the list with new head

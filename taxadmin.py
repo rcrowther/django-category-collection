@@ -342,7 +342,7 @@ def _term_delete(request, term_pk):
         )
         messages.add_message(request, messages.WARNING, msg) 
         return HttpResponseRedirect(reverse('base-list'))
-      b = BaseTerm.system.base(tm.pk)
+      b = BaseTerm.system.base_pk(tm.pk)
       
       if (request.method == 'POST'):
           #Term.system.delete(tm.pk)
