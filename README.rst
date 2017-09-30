@@ -272,10 +272,11 @@ and place,::
 in template heads. Or the field will not react.
 
 
-TODOs
------
-SQL and data structure needs a review.
+Current state
+-------------
+'Draft'
 
+I'm not a Python programmer, and am new to Django. On the other hand, this app is not 'ALPHA'; if used as recommended it can never destroy your data, by design. The API was, in part, introduced to give some confidence in stability.
 
 Code organisation
 -----------------

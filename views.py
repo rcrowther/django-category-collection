@@ -4,10 +4,7 @@ from django.shortcuts import render
 #from django.views.generic import ListView
 #from django.views.generic.detail import DetailView
 #from django.views.generic import TemplateView
-#from django.urls import reverse
 #from django.http import Http404, HttpResponseRedirect
-#from django.utils import html
-#from django.utils.safestring import mark_safe
 #from django.views.decorators.cache import never_cache
 #from django.db import connection
 #from itertools import chain

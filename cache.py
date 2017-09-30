@@ -1,5 +1,5 @@
 
-from .models import Term, Base, TermParent, BaseTerm
+from .models import Term, Base, TermParent, BaseTerm, Element
 import sys
 from collections import namedtuple
 from functools import partial
@@ -11,6 +11,50 @@ from functools import partial
 # https://stackoverflow.com/questions/1977362/how-to-create-module-wide-variables-in-python#1978076
 this = sys.modules[__name__]
 
+
+class AllQueryCache():
+    '''
+    @param bulk_load_callback a value
+    @param single_load_callback [(k,v)...]. Key is converted to int
+    '''
+    def __init__(self, bulk_load_callback, single_load_callback):
+        self.cache = {}
+        self.bulk_load_callback = bulk_load_callback
+        self.single_load_callback = single_load_callback
+        self.bulk_load()
+        
+    def get(self, pk):
+        assert isinstance(pk, int), "Not an integer!"
+        r = self.cache.get(pk)
+        if (r is None):
+          r = self.single_load_callback(pk)
+          self.cache[pk] = r
+        return r
+        
+    def bulk_load(self):
+        qs = self.bulk_load_callback()
+        for e in qs:
+            self.cache[int(e[0])] = e[1]
+           
+    def clear_one(self, pk):
+        assert isinstance(pk, int), "Not an integer!"
+        try:
+            del(self.cache[pk])
+        except KeyError:
+          pass
+                 
+    def clear_some(self, pks):
+      for pk in pks:
+          self.clear_one(int(pk))
+          
+    def clear_all(self):
+        self.cache = {}
+        self.bulk_load()
+        
+    def __str__(self):
+        return str(self.cache)
+        
+        
 this._base_cache = {}
 
 def base(base_pk):
@@ -168,7 +212,7 @@ def base_merge_clear():
     '''
     Clear cached data on base create or update. 
     For create or update on a Base. There is no need to touch other
-    data for this.
+    data.
     '''
     this._base_cache = {}
 
@@ -183,7 +227,8 @@ def base_delete_clear(base_pk):
     except KeyError:
       pass
     # demolition, unless we recover deleted terms?
-    this._count = {}
+    #this._count = {}
+    this._count.clear_all()
 
 def term_merge_clear(base_pk):
     '''
@@ -194,7 +239,7 @@ def term_merge_clear(base_pk):
     try:
         del(this._child_cache[base_pk])
     except KeyError:
-      pass
+        pass
     #N.B. the count will update itself
 
 def term_delete_clear(term_pk):
@@ -207,18 +252,20 @@ def term_delete_clear(term_pk):
     base_pk = BaseTerm.system.base(term_pk)
     try:
         del(this._child_cache[base_pk])
-        del(this._count[term_pk])
+        #del(this._count[term_pk])
     except KeyError:
       pass
+    this._count.clear_all()
 
 def element_clear_term(term_pk):
-    try:
-      del(this._count[term_pk])
-    except KeyError:
-      pass
+    #try:
+    #  del(this._count[term_pk])
+    #except KeyError:
+    #  pass
+    this._count.clear_one(term_pk)
        
 def element_clear_all():
-    this._count = {}
+    this._count.clear_all()
 
 #def element_clear_tree(tree_pk):
     # demolition, as it can remove from anyplace
@@ -233,7 +280,8 @@ def clear():
     this._term_cache = {}
     this._child_cache = {}
     this._parent_cache = {}
-    this._count = {}
+    #this._count = {}
+    this._count.clear_all()
 
 def term(base_pk, term_pk):
     '''
@@ -445,20 +493,26 @@ def base_term_pks(base_pk):
         b.add(tpk)
     return b  
 
-def _term_element_count(term_pk):
-    '''
-    Count of elems on a single term
-    '''
-    assert isinstance(term_pk, int), "Not an integer!"
-    r = this._count.get[term_pk]
-    if (not r):
-        r = Element.objects.filter(term__exact=term_pk).count()
-        this._count[term_pk] = r
-    return r
-    
-def term_descendant_element_count(term_pk):
+
+def _one_elem(pk):
+    return int(Element.objects.filter(term__exact=pk).count)
+
+def _all_elems():
+    r = Term.objects.values_list('pk', flat=True)
+    b = []
+    for tpk in r:
+        count = Element.objects.filter(term__exact=tpk).count()
+        b.append((tpk, int(count)))
+    return b 
+
+this._count = AllQueryCache(
+    _all_elems,
+    _one_elem
+    )
+
+def term_descendant_element_count(base_pk, term_pk):
     termpk = int(term_pk)
-    count = _term_element_count(termpk)
-    for tpk in term_descendant_pks(termpk):
-        count = count + term_element_count(termpk)
+    count = this._count.get(termpk)
+    for tpk in term_descendant_pks(base_pk, termpk):
+        count = count + this._count.get(tpk)
     return count

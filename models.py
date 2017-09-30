@@ -547,8 +547,8 @@ class ElementManager(models.Manager):
         Create/update an element attachment to terms.
         '''
         #? tad risky, testing only the first?
-        base_pk = BaseTerm.system.base(term_pks[0])
-        self.delete(base_pk, [element_pk])
+        base_pk = BaseTerm.system.base_pk(term_pks[0])
+        self.delete(base_pk, element_pk)
         
         elements = []
         if (isinstance(term_pks, list)):
