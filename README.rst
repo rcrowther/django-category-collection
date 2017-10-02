@@ -297,22 +297,22 @@ This taxonomy base has the id 7 (the url on the edit bar showed this).
 
 And you have a view for the front page. So add code like this::
 
-def front_page(request): 
-    article = # get this data by your own method
-    ...
-    
-    # 1. Get the immdiate children of the taxonomy base. This explicitly states the parent is the api.ROOT i.e. get the bottom children. 
-    children = api.term_children(7, api.ROOT)
-    
-    # 2. Render the child data in some way. For this example, I only use the term title, and and assume some code in tmpl_li_link() does the rendering, not a template.
-    b = []
-    for c in children:
-        b.append(tmpl_li_link('/' + c.title, c.title))
+    def front_page(request): 
+        article = # get this data by your own method
+        ...
         
-    # 3. Add the rendered code to the template context in 'nav'.
-    nav = {}      
-    nav['links'] = mark_safe(''.join(b))
-    return render(request, 'test.html', {'nav': nav, 'article': article})
+        # 1. Get the immdiate children of the taxonomy base. This explicitly states the parent is the api.ROOT i.e. get the bottom children. 
+        children = api.term_children(7, api.ROOT)
+        
+        # 2. Render the child data in some way. For this example, I only use the term title, and and assume some code in tmpl_li_link() does the rendering, not a template.
+        b = []
+        for c in children:
+            b.append(tmpl_li_link('/' + c.title, c.title))
+            
+        # 3. Add the rendered code to the template context in 'nav'.
+        nav = {}      
+        nav['links'] = mark_safe(''.join(b))
+        return render(request, 'test.html', {'nav': nav, 'article': article})
 
 Now we adjust the template. We have only rendered the children, and we'd like a 'home' link, so we start the render with a fixed 'home' link. That one will not change. Then put the links made from children after,::
 
