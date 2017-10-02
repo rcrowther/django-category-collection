@@ -278,8 +278,86 @@ Current state
 
 I'm not a Python programmer, and am new to Django. On the other hand, this app is not 'ALPHA'; if used as recommended it can never destroy your data, by design. The API was, in part, introduced to give some confidence in stability.
 
+Displaying taxonomy information
+--------------------------------
+As well as organising data internally, a taxonomy container can display information to a user. 
+
+Now, this is a chance for all you front-end developers to show your skill. I'll show some basics.
+
+Remember, a taxonomy container can be performing many tasks. It may be modelling a family tree. It may be a base or organising collections of photographs. Or it may be running a menu system.
+
+Let's say the taxonomy is running a menu system (this gives me a chance to show some methods visually). Personally, if the menu system was very simple, I'd not use a taxonomy---I'd put the navigation bar in a template. But if you were to cut and change a lot, or the menu system becomes deep, or needs maintaining by others, you may consider a taxonomy.
+
+So you build a taxonomy, and the structure you have reflects the data you have. It may look like this,
+
+ 
+    terms_in_a_base.png
+
+This taxonomy base has the id 7 (the url on the edit bar showed this).
+
+And you have a view for the front page. So add code like this::
+
+def front_page(request): 
+    article = # get this data by your own method
+    ...
+    
+    # 1. Get the immdiate children of the taxonomy base. This explicitly states the parent is the api.ROOT i.e. get the bottom children. 
+    children = api.term_children(7, api.ROOT)
+    
+    # 2. Render the child data in some way. For this example, I only use the term title, and and assume some code in tmpl_li_link() does the rendering, not a template.
+    b = []
+    for c in children:
+        b.append(tmpl_li_link('/' + c.title, c.title))
+        
+    # 3. Add the rendered code to the template context in 'nav'.
+    nav = {}      
+    nav['links'] = mark_safe(''.join(b))
+    return render(request, 'test.html', {'nav': nav, 'article': article})
+
+Now we adjust the template. We have only rendered the children, and we'd like a 'home' link, so we start the render with a fixed 'home' link. That one will not change. Then put the links made from children after,::
+
+        <ul>
+          <li><a class="home" href="/">Home</a></li>{{ nav.links }}
+        </ul>
+
+And if we render with some CSS, this might appear,::
+
+   taxonomy_children.png
+   
+As I said above, I wouldn't bother for a small site. Still, the taxonomy control has advantages. If this little magazine-style site takes off, they may find their data changing. For example; the owners are not as keen for people to contact them now, as they have a lot going on. And a new person arrived who wanted to cover sport. So we go to the taxonomy admin (not the template), add some weight to the 'contact' term, then add a new term/category for 'sport' articles. Next render, we get this,::
+
+   taxonomy_children_adjusted.png
+
+There are many methods in the API. term_ancestor_paths() gets the paths back from a term to the root. The code is nearly the same as the last code, but note the use of an index for '0',
+
+    path = api.term_ancestor_paths(7, 141)[0]
+    
+    b = []
+    for c in path:
+        b.append(tmpl_li_link('/' + c.title, c.title))
+    nav = {}      
+    nav['links'] = mark_safe(''.join(b))
+    return render(request, 'test.html', {'nav': nav, 'article': paper})
+
+Why do we need to get path[0]?  If this was a multiple parent taxonomy, there would be many possible paths back to root (think about it...). term_ancestor_paths() will return them all. Handled well, this could lead to some innovative displays, or it could be bewildering. But we are looking at a single-parent taxonomy. there is only one path back to root, so we can safely assume that will be index [0].
+
+The result, with the fixed home link and some new CSS, might look like this,
+
+.. figure:: https://raw.githubusercontent.com/rcrowther/django-category-collection/master/text/images/breadcrumb.png
+    :width: 160 px
+    :alt: breadcrumb screenshot
+    :align: center
+
+    You know it as a 'breadcrumb'
+
+Yes, it is what web-designers call a breadcrumb trail.
+
+
+Extra
+-----
+
 Code organisation
------------------
+~~~~~~~~~~~~~~~~~
 Taxonomy collections are complex beyond their simple models.
  
 Only work with the Models if you need to repair or want to play. The models keep '.objects' as the primary model manager. The methods can damage the collections; make orphans of links and create circular dependencies. Beyond, each Model adds a second manager called '.system'. These managers contain methods which will maintain the integrity of the collections.
@@ -288,16 +366,16 @@ Next is a module called 'cache'. This is not Django cache, it is maintained by t
 
 The 'api' module pulls these parts together in a facade. This is where you would look for methods to use in your code. 
 
-
+You will not find much in 'views.py' besides JSON rendering. 'taxadmin.py' contains the admin gear, 'modeladmin.py' a couple of constructions for ModelAdmin, and 'element.py' contains the various forms/fields/widgets for handling element association/disassociation.
 
 
 A note on implementation
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~
 This is one of my first efforts in Django. It has caused me trouble. The form documentation was not helpful, so I hand-built the admin from Form, not ModelForm, classes. I resent being pushed into this, even if I feel the final implementation is better that way. The data modelling caused me similar problems and has, in several places, abandoned relational Fields for SQL. Again, I prefer it that way, but am unhappy about needing to do this in the first instance.
 
 
 A comparison of 'Django category collection' and 'django-categories'
----------------------------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 In comparison, the theory behind this project will be inelegant at discovering data elements from multiple terms. The action is possible, but not of great interest and has not been implemented (yet). Also, this project caches all data from terms/categories, and so may not scale well to many terms. Before you implement the Dewey_ reference system, please run tests.
 
 However, this implementation of a category collection has advantages (as all differing implementations will). The app is nearly self-contained. It's storage models are plain and few, making backup and salvage simple---salvage can be managed through Django admin. The view code is twisty in places, but can derive really useful data from the category trees. Without AJAX or whatever, the core methods are sophisticated. And finally, the container in this app has a Pythonlike interface.

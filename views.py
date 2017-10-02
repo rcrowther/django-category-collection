@@ -1,98 +1,51 @@
 from django.shortcuts import render
 
 
-#from django.views.generic import ListView
-#from django.views.generic.detail import DetailView
-#from django.views.generic import TemplateView
-#from django.http import Http404, HttpResponseRedirect
-#from django.views.decorators.cache import never_cache
-#from django.db import connection
-#from itertools import chain
-#from functools import partial
-#import sys
-#from collections import namedtuple
-
-from .models import Term, Base, TermParent, BaseTerm, Element
-from .cache import term_descendant_pks, terms_flat_tree, base
+from .models import Term #, Base, TermParent, BaseTerm, Element
 
 
 
 # TODO:
-# Some url solution
+
+## Models
 # how big is that pk field?
-# bulk add/delete (nodes and terms especially)
-# check actions
-# check nodes
-#x check weights
-# access methods
-# have at look at SQL queries
+# check SQL queries
 # SQL commits and transactions?
-# paginate
-#x multiparents
-#x protect form fails
-# test permissions admin
-# generictemplate module detection
-# set weight to zero button
+# do more generators in the manager SQL, they seem natural
+# refactor NOPARENT to NO_PARENT
+
+## cache
+# bases needs a similar api to term and count
+
+## admin
+# paginate lists
+# test permissions admin, still not happy
 # maybe not parent to root when is root?
-#x treelist is duplicating
-#clearup the overcooked js
 
-    
-from django.forms import TypedChoiceField, TypedMultipleChoiceField
-#!
-# isn't this for elements? So shouldn't default be -2?
-def term_form_field_select(base_pk):
-    '''
-    @return a single or multi-selector field with all-term widget
-    '''
-        # return differnt kinds of fields depening if this is a 
-        # multiparent taxonomy or not
-    t = base(base_pk)
-    choices = term_choices(base_pk)
-    if (t.is_single()):
-      return TypedChoiceField(
-      choices = choices,
-      coerce=lambda val: int(val), 
-      empty_value=-1,
-      label='Taxonomy',
-      help_text="Choose a term to parent this item"
-      )
-    else:
-      return TypedMultipleChoiceField(
-      choices = choices,
-      coerce=lambda val: int(val), 
-      empty_value=-1,
-      label='Taxonomy',
-      help_text="Choose a term to parent this item"
-      )
+## widgets
+# make weight to zero button
 
-  
-########################################
-## views
+## template
+# clearup the overcooked js
+# generictemplate module detection
 
-#from django.forms import ModelForm
-
+## forms
+# consider FormViews for everything. 
+# Compare against adminForms, which seem to have more inpput protection
+# do the transaction thing on all deletes...
+# from django.db import models, router, transaction
+# ...and csrf  
 #from django.views.decorators.csrf import csrf_protect
-#from django.utils.decorators import method_decorator
-
+#from django.utils.decorators import method_decorato  
 #csrf_protect_m = method_decorator(csrf_protect)
 
-#from django.contrib import messages
-#from django.db import models, router, transaction
+## fields/widgets
+# make a stub field, now you've decided they all need replacing
+# writeup on widget swapping
+# fancy term widget? SVG?
 
-
-
-
-
-
-
-################
-
-#from django import forms
-
-     
-#from django.forms import TypedMultipleChoiceField, MultipleChoiceField
-#from django.forms.fields import CallableChoiceIterator
+## usage
+# done nothing here, nothing
 
 import json
 from django.http import JsonResponse
@@ -121,7 +74,6 @@ def GenericTitleSearchJSONView(model1, title_field1, case_insensitive1=True):
     return GenericTitleSearchJSONView
 
 
-#? could use base_term_pks from cache ?
 #http://127.0.0.1:8000/taxonomy/term_titles_ajax/29/
 def term_title_search_view(request, base_pk):
     tl = None

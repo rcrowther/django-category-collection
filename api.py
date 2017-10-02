@@ -11,6 +11,10 @@ from .models import Base, Term, BaseTerm, TermParent, Element
 ## Facade for cache and Model/Model manager methods for consistent 
 # (non-web restricted) interface
 
+# constants
+ROOT = TermParent.NO_PARENT
+
+
 # Cache-based
 
 def base(base_pk):
@@ -62,7 +66,7 @@ def base_update(base_pk, title, slug, description, is_single, weight):
     return Base.system.update(base_pk, title, slug, description, is_single, weight)
 
 def base_delete(base_pk):
-    cache.base_and_term_tree_clear(base_pk)
+    cache.base_and_tree_clear(base_pk)
     return Base.system.delete(base_pk)
 
 def base_ordered():
@@ -72,7 +76,7 @@ def base_terms_ordered(base_pk):
     return BaseTerm.system.terms_ordered(base_pk)
     
 def base_set_is_single(base_pk, is_single):
-    cache.base_and_term_tree_clear(base_pk)
+    cache.base_and_tree_clear(base_pk)
     Base.system.set_is_single(base_pk, is_single)
 
 def term_create(base_pk, parent_pks, title, slug, description, weight):
@@ -80,12 +84,15 @@ def term_create(base_pk, parent_pks, title, slug, description, weight):
     return Term.system.create(base_pk, parent_pks, title, slug, description, weight)
 
 def term_update(parent_pks, term_pk, title, slug, description, weight):
-    cache.tree_parentage_clear(term_base_pk(term_pk))
+    cache.term_and_tree_clear(term_pk)
     return Term.system.update(parent_pks, term_pk, title, slug, description, weight)
       
 def term_delete(term_pk):
-    cache.term_tree_clear(term_pk)
+    cache.tree_clear(term_pk)
     return Term.system.delete(term_pk)
+
+def term_by_title(title):
+    return Term.objects.get(title__exact=title)
 
 #? and a base?
 def term_base_pk(term_pk):

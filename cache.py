@@ -244,40 +244,47 @@ def base_clear():
     this._base_cache = {}
 
 def tree_parentage_clear(base_pk):
+    '''
+    Clear the tree.
+    Used on term creation.
+    '''
     assert isinstance(base_pk, int), "Not an integer!"
     try:
         del(this._child_cache[base_pk])
     except KeyError:
       pass
-      
-def base_and_term_tree_clear(base_pk):
-    '''
-    Clear cached data on base delete.
-    '''
-    assert isinstance(base_pk, int), "Not an integer!"
-    this._base_cache = {}
-    try:
-        del(this._child_cache[base_pk])
-    except KeyError:
-      pass
-    # demolition, unless we recover deleted terms?
-    #this._count = {}
-    this._term_cache.clear_all()
-    this._count.clear_all()
 
-def term_tree_clear(term_pk):
+def term_and_tree_clear(term_pk):
     '''
-    Clear cached data on term delete. 
-    Term delete causes recursive deletion, so all base info needs 
-    invalidating.
+    Clear a term and the tree.
+    Used for term modification. 
     '''
     assert isinstance(term_pk, int), "Not an integer!"
     base_pk = BaseTerm.system.base_pk(term_pk)
-    try:
-        del(this._child_cache[base_pk])
-        #del(this._count[term_pk])
-    except KeyError:
-      pass
+    tree_parentage_clear(base_pk)
+    this._term_cache.clear_one(term_pk)
+    this._count.clear_one(term_pk)
+        
+def base_and_tree_clear(base_pk):
+    '''
+    Clears a tree and the base. 
+    Used on base delete.
+    '''
+    base_clear()
+    tree_parentage_clear(base_pk)
+    # demolition, unless we recover deleted terms?
+    this._term_cache.clear_all()
+    this._count.clear_all()
+
+def tree_clear(term_pk):
+    '''
+    Clear cached data for a tree
+    Used on on term delete. Term delete causes recursive deletion, so 
+    all base info needs invalidating.
+    '''
+    assert isinstance(term_pk, int), "Not an integer!"
+    base_pk = BaseTerm.system.base_pk(term_pk)
+    tree_parentage_clear(base_pk)
     this._term_cache.clear_all()
     this._count.clear_all()
 
