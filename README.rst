@@ -280,22 +280,23 @@ I'm not a Python programmer, and am new to Django. On the other hand, this app i
 
 Displaying taxonomy information
 --------------------------------
-As well as organising data internally, a taxonomy container can display information to a user. 
+A taxonomy container can organise data internally. It can also display information to a user. Now, this is a chance for all you front-end developers to show your skills. I'll show basics.
 
-Now, this is a chance for all you front-end developers to show your skill. I'll show some basics.
+Remember, a taxonomy container can perform many tasks. It may model a family tree. It may organise collections of photographs. Or it may run a menu system.
 
-Remember, a taxonomy container can be performing many tasks. It may be modelling a family tree. It may be a base or organising collections of photographs. Or it may be running a menu system.
+Let's say the taxonomy is runs a menu system (this gives me a chance to show some methods visually). Personally, if the menu system was very simple, I'd not use a taxonomy---I'd put the navigation bar in a template. But if people need to change the menus, or the menu system becomes deep, or needs maintaining by others, you may consider a taxonomy.
 
-Let's say the taxonomy is running a menu system (this gives me a chance to show some methods visually). Personally, if the menu system was very simple, I'd not use a taxonomy---I'd put the navigation bar in a template. But if you were to cut and change a lot, or the menu system becomes deep, or needs maintaining by others, you may consider a taxonomy.
+So you build a taxonomy, and the structure you have reflects the data you have. It may look like this,::
 
-So you build a taxonomy, and the structure you have reflects the data you have. It may look like this,
-
- 
-    terms_in_a_base.png
+.. figure:: https://raw.githubusercontent.com/rcrowther/django-category-collection/master/text/images/terms_in_a_base.png
+    :width: 160 px
+    :alt: breadcrumb screenshot
+    :align: center
+    
 
 This taxonomy base has the id 7 (the url on the edit bar showed this).
 
-And you have a view for the front page. So add code like this::
+And you have a view for the front page. Add code like this::
 
     def front_page(request): 
         article = # get this data by your own method
