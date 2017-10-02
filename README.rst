@@ -322,11 +322,23 @@ Now we adjust the template. We have only rendered the children, and we'd like a 
 
 And if we render with some CSS, this might appear,::
 
-   taxonomy_children.png
+.. figure:: https://raw.githubusercontent.com/rcrowther/django-category-collection/master/text/images/taxonomy_children.png
+    :width: 160 px
+    :alt: breadcrumb screenshot
+    :align: center
+
+    It's a nav bar.
+   
    
 As I said above, I wouldn't bother for a small site. Still, the taxonomy control has advantages. If this little magazine-style site takes off, they may find their data changing. For example; the owners are not as keen for people to contact them now, as they have a lot going on. And a new person arrived who wanted to cover sport. So we go to the taxonomy admin (not the template), add some weight to the 'contact' term, then add a new term/category for 'sport' articles. Next render, we get this,::
 
-   taxonomy_children_adjusted.png
+.. figure:: https://raw.githubusercontent.com/rcrowther/django-category-collection/master/text/images/taxonomy_children_adjusted.png
+    :width: 160 px
+    :alt: breadcrumb screenshot
+    :align: center
+
+    The new layout. 5 secs.
+   
 
 There are many methods in the API. term_ancestor_paths() gets the paths back from a term to the root. The code is nearly the same as the last code, but note the use of an index for '0',
 
