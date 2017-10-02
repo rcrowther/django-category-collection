@@ -11,13 +11,11 @@ from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import render
 from . import api
 #? only for select choices?
-#from. import views
 from django.forms import TypedChoiceField, TypedMultipleChoiceField
 from .inlinetemplates import link, submit, tmpl_instance_message
 
-#! work to do deleteView etc?
-#! not in admin permissions
 
+#! build rows in code. These templates are pointless.
 class TermListView(TemplateView):
   template_name = "taxonomy/term_list.html"
   
@@ -44,12 +42,12 @@ class TermListView(TemplateView):
       if (not tree1.is_single):
         # multiple can not show the structure of the tree
         # (...could if the tree is small, but let's be consistent)
-        #term_data_queryset = Term.objects.order_by('weight', 'title').filter(base__exact=tree1.pk).values_list('pk', 'title')
         term_data_queryset = api.base_terms_ordered(tree1.pk)
         for o in term_data_queryset:
           pk = o[0]
           rows.append({
-            'view': link(o[1], reverse('term-preview', args=[pk])),
+            #'view': link(o[1], reverse('term-preview', args=[pk])),
+            'view': o[1],
             'edit': link('edit', reverse('term-edit', args=[pk]))
           })    
       else:
@@ -61,11 +59,12 @@ class TermListView(TemplateView):
         for td in ftree: 
           #? Unicode nbsp is probably not long-term viable
           # but will do for now
-          title = '\u00A0' * (td.depth*2)  + td.title          
+          title = '\u00A0' * (td.depth*2)  + html.escape(td.title)          
           pk = td.pk
           # (extra context data here in case we enable templates/JS etc.)
           rows.append({
-            'view': link(title, reverse('term-preview', args=[pk])),
+            #'view': link(title, reverse('term-preview', args=[pk])),
+            'view': title,
             'termpk': pk,
             'depth': td.depth,
             'edit': link('edit', reverse('term-edit', args=[pk]))
@@ -331,13 +330,12 @@ def _term_delete(request, term_pk):
 
 
 #@csrf_protect_m        
-def term_delete(request, pk):
+def term_delete(request, term_pk):
     with transaction.atomic(using=router.db_for_write(Term)):
-      return _term_delete(request, pk)
+      return _term_delete(request, term_pk)
   
 
-
-      
+#! build rows in code. This template is pointless.
 class BaseListView(TemplateView):
   template_name = "taxonomy/tree_list.html"
 
@@ -535,7 +533,7 @@ def _base_delete(request, base_pk):
   
 
 #@csrf_protect_m  
-def base_delete(request,base_pk):
+def base_delete(request, base_pk):
     #? lock what? How?
     with transaction.atomic(using=router.db_for_write(Base)):
       return _base_delete(request, base_pk)

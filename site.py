@@ -11,7 +11,6 @@ try:
 except ImportError:
     site = None
 
-from generic_view_template.views import GenericObjectView
 from taxonomy.models import Term, Base
 from . import views
 from taxonomy.taxadmin import BaseListView, TermListView
@@ -71,28 +70,17 @@ def get_urls(admin_site=site):
   
     urls = [
         # Order is important, actions before slugs
-        #? Nothing is cacheable
-        #url(r'^element/(?P<element_pk>\d+)$', wrap(views.element_link), name='element-link'),
-        #url(r'^element/(?P<element_pk>\d+)$', wrap(ElementSearchView.as_view()), name='element-link'),
-        #url(r'^term_titles/(?P<base_pk>\d+)$', wrap(views.term_title_search_view), name='term-titles'),
         url(r'^base/(?P<base_pk>\d+)/term_titles/json/search$', wrap(views.term_title_search_view), name='term-titles-startswith-json'),
-        
-        #url(r'^term/(?P<term_pk>\d+)/element/merge/$', wrap(views.element_merge), name='element-merge'),
-        #url(r'^base/(?P<base_pk>\d+)/element/(?P<element_pk>\d+)/delete/$', wrap(views.element_delete), name='element-delete'),
-        
         url(r'^base/(?P<base_pk>\d+)/term/list/$', wrap(TermListView.as_view()), name='term-list'),
         url(r'^base/(?P<base_pk>\d+)/term/add/$', wrap(taxadmin.term_add), name='term-add'),
         url(r'^term/(?P<term_pk>\d+)/edit/$', wrap(taxadmin.term_edit), name='term-edit'),
-        url(r'^term/(?P<pk>\d+)/delete/$', wrap(taxadmin.term_delete), name='term-delete'),
-        url(r'^term/(?P<pk>\d+)/$', wrap(GenericObjectView.as_view(model=Term,)), name='term-preview'),
-        url(r'^term/(?P<slug>[-\w]+)/$', wrap(GenericObjectView.as_view(model=Term,)), name='term-detail'),
+        url(r'^term/(?P<term_pk>\d+)/delete/$', wrap(taxadmin.term_delete), name='term-delete'),
         
         url(r'^base/list/$',  wrap(BaseListView.as_view()), name='base-list'),
         url(r'^base/add/$', wrap(taxadmin.base_add), name='base-add'),
         url(r'^base/(?P<base_pk>\d+)/edit/$', wrap(taxadmin.base_edit), name='base-edit'),
         url(r'^base/(?P<base_pk>\d+)/delete/$', wrap(taxadmin.base_delete), name='base-delete'),
         url(r'^base/(?P<base_pk>\d+)/tosingleparent/$', wrap(taxadmin.base_to_singleparent), name='base-tosingleparent'),
-        url(r'^base/(?P<slug>[-\w]+)/$', wrap(GenericObjectView.as_view(model=Base,)), name='base-detail'),
         
         url(r'^$', wrap(BaseListView.as_view()), name='base-list'),
     ]

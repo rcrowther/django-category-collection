@@ -34,7 +34,7 @@ from .models import Term #, Base, TermParent, BaseTerm, Element
 # Compare against adminForms, which seem to have more inpput protection
 # do the transaction thing on all deletes...
 # from django.db import models, router, transaction
-# ...and csrf  
+# ...and consider csrf  
 #from django.views.decorators.csrf import csrf_protect
 #from django.utils.decorators import method_decorato  
 #csrf_protect_m = method_decorator(csrf_protect)

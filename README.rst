@@ -74,6 +74,19 @@ The core models can be maintained through Django admin, but the module uses a no
 The base look of the admin views and forms is similar to Django admin. However, the forms link in a different way, from overview lists to action, treating the app as a coherent whole. Start at http://127.0.0.1:8000/taxonomy and work from there.
 
 
+Fast start/Know what you are doing?
+-----------------------------------
+Install (see up).
+
+Start at http://127.0.0.1:8000/taxonomy and build a base with some terms.
+ 
+Look in taxonomy.api for methods. Probably,::
+
+    def term_children(base_pk, term_pk)
+
+Put this in a view, then render the results.
+
+
 General Structure
 ------------------
 Define a base. Put terms into the base and parent them with other terms, or at the bottom in \<root\>,::

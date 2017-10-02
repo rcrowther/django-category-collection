@@ -17,12 +17,12 @@ def link(text, href, attrs={}):
     # for keys, such as 'id' and 'class'
     b = []
     for k,v in attrs.items():
-      b.append('{0}={1}'.format(k, v))
+        b.append('{0}={1}'.format(k, v))
     return mark_safe('<a href="{0}" {1}/>{2}</a>'.format(
-      html.escape(href),
-      ' '.join(b),
-      html.escape(text)
-      ))
+        html.escape(href),
+        ' '.join(b),
+        html.escape(text)
+        ))
 
 def submit(value, name, attrs={}):
     '''
@@ -36,12 +36,27 @@ def submit(value, name, attrs={}):
     # for keys, such as 'id' and 'class'
     b = []
     for k,v in attrs.items():
-      b.append('{0}={1}'.format(k, v))
+        b.append('{0}={1}'.format(k, v))
     return mark_safe('<input name="{0}" value={1} type="submit" {2}>'.format(
-      html.escape(name),
-      html.escape(value),
-      ' '.join(b)
-      ))
+        html.escape(name),
+        html.escape(value),
+        ' '.join(b)
+        ))
+
+# currently unused
+def table_row(row_data):
+    '''
+    Build HTML for a table row.
+    
+    @param row_data Not escaped.
+    @return list of the data. Needs joining.
+    '''
+    b = []
+    for e in row_data:
+        b.append('<td>')
+        b.append(e)
+        b.append('</td>')
+    return b
 
 def tmpl_instance_message(msg, title):
   '''Template for a message or title about an model instance'''
