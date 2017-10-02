@@ -151,9 +151,6 @@ class TermForm(forms.Form):
       help_text="Category above ('root' is top-level)."
       )
       
-    #! how big is the field?
-    #base = forms.IntegerField(min_value=0, widget=forms.HiddenInput())
-    
     title = forms.CharField(label='Title', max_length=64,
       help_text="Name for the category. Limited to 255 characters."
       )
@@ -170,28 +167,14 @@ class TermForm(forms.Form):
       help_text="Priority for display in some templates. Lower value orders first. 0 to 32767."
       )
     
-    def __init__(self, *args, **kwargs):
-      super().__init__(*args, **kwargs)
-      
-      #base = kwargs['initial']['base']
-      #term_pk = kwargs['initial'].get('pk')
-      # set form field type
-      # default is single parent. If multiple parent, override with
-      # multiple-select.
-      
-      # set choices
-      #pk = kwargs['initial'].get('pk')
-      #if(pk is not None):
-          # update form. root and targeted choices
-      #    self.fields['parents'].choices = views.term_exclusive_select(term(pk))
-      #else:
-          # create form. root and all term choices.
-      #    self.fields['parents'].choices = views.term_all_select(base_pk) 
+    
+
 
  
 def term_add(request, base_pk):
-    b = api.base(base_pk)
-    if (b == None):
+    try:
+        b = api.base(int(base_pk))
+    except Exception:
         msg = "Base with ID '{0}' doesn't exist.".format(b.pk)
         messages.add_message(request, messages.WARNING, msg) 
         return HttpResponseRedirect(reverse('term-list', args=[b.pk]))
@@ -207,7 +190,6 @@ def term_add(request, base_pk):
 
         ## check whether it's valid:
         if f.is_valid():
-            #t = Term.system.create(
             t = api.term_create(
                 base_pk=b.pk, 
                 parent_pks=f.cleaned_data['parents'],
@@ -215,10 +197,7 @@ def term_add(request, base_pk):
                 slug=f.cleaned_data['slug'], 
                 description=f.cleaned_data['description'], 
                 weight=f.cleaned_data['weight']
-                ) 
-            
-            #cache_clear_flat_tree(b.pk)
-          
+                )
             msg = tmpl_instance_message("Created new Term", t.title)
             messages.add_message(request, messages.SUCCESS, msg)
             return HttpResponseRedirect(reverse('term-list', args=[b.pk]))
@@ -251,9 +230,11 @@ def term_add(request, base_pk):
 
 
 
+
+
 def term_edit(request, term_pk):
     try:
-      tm = Term.objects.get(pk__exact=term_pk)
+      tm = api.term(int(term_pk))
     except Term.DoesNotExist:
         msg = "Term with ID '{0}' doesn't exist.".format(term_pk)
         messages.add_message(request, messages.WARNING, msg)        
@@ -280,11 +261,7 @@ def term_edit(request, term_pk):
             #! validate
             # - parent not between trees
             # - parent not child of itself
-            #if (f.fields['treepk'].has_changed()):
-            #! handle mutiple            
-            #t = Term.system.update(
             t = api.term_update(
-                #treepk=f.cleaned_data['base'], 
                 parent_pks=f.cleaned_data['parents'], 
                 term_pk=tm.pk, 
                 title=f.cleaned_data['title'], 
@@ -292,9 +269,6 @@ def term_edit(request, term_pk):
                 description=f.cleaned_data['description'], 
                 weight=f.cleaned_data['weight']
                 ) 
-            
-            #cache_clear_flat_tree(b)
-
             msg = tmpl_instance_message("Updated Term", t.title)
             messages.add_message(request, messages.SUCCESS, msg)
             return HttpResponseRedirect(reverse('term-list', args=[b.pk]))
@@ -302,18 +276,12 @@ def term_edit(request, term_pk):
     else:
         # requested update form
         initial = dict(
-            # this field triggers modified parent widgets
-            pk=tm.pk,
             title=tm.title,
             slug=tm.slug,
             description=tm.description,
             weight=tm.weight,
             parents=api.term_parent_pks(b.pk, tm.pk)
           )
-        # add in the non-model treepk field inits
-        #initial['parents'] = term_parent_data(b, tm.pk)
-        #set field type
-        #initial['parents'] = term_exclusive_select(tm)
 
         #set initial data
         f = TermForm(initial=initial)
@@ -334,34 +302,32 @@ def term_edit(request, term_pk):
 
 
 def _term_delete(request, term_pk):
-      try:
-        tm = Term.objects.get(pk__exact=term_pk)
-      except Term.DoesNotExist:
+    try:
+        tm = api.term(int(term_pk))
+    except Term.DoesNotExist:
         msg = "Term with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
             term_pk
         )
         messages.add_message(request, messages.WARNING, msg) 
         return HttpResponseRedirect(reverse('base-list'))
-      b = BaseTerm.system.base_pk(tm.pk)
+    b = BaseTerm.system.base_pk(tm.pk)
       
-      if (request.method == 'POST'):
-          #Term.system.delete(tm.pk)
-          api.term_delete(tm.pk)
-          #cache_clear_flat_tree(b)
-          msg = tmpl_instance_message("Deleted Term", tm.title)
-          messages.add_message(request, messages.SUCCESS, msg)
-          return HttpResponseRedirect(reverse('term-list', args=[b]))
-      else:
-          message = '<p>Are you sure you want to delete the Term "{0}"?</p><p>Deleting a term will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a term will not delete elements attached to the term. However, attached elements will be removed from the taxonomies)</p>'.format(
-            html.escape(tm.title)
-            )
-          context={
-            'title': tmpl_instance_message("Delete term", tm.title),
-            'message': mark_safe(message),
-            'submit': {'message':"Yes, I'm sure", 'url': reverse('term-delete', args=[tm.pk])},
-            'actions': [link('No, take me back', reverse("term-edit", args=[tm.pk]), attrs={'class':'"button"'})],
-          } 
-          return render(request, 'taxonomy/delete_confirm_form.html', context)
+    if (request.method == 'POST'):
+        api.term_delete(tm.pk)
+        msg = tmpl_instance_message("Deleted Term", tm.title)
+        messages.add_message(request, messages.SUCCESS, msg)
+        return HttpResponseRedirect(reverse('term-list', args=[b]))
+    else:
+        message = '<p>Are you sure you want to delete the Term "{0}"?</p><p>Deleting a term will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a term will not delete elements attached to the term. However, attached elements will be removed from the taxonomies)</p>'.format(
+          html.escape(tm.title)
+          )
+        context={
+          'title': tmpl_instance_message("Delete term", tm.title),
+          'message': mark_safe(message),
+          'submit': {'message':"Yes, I'm sure", 'url': reverse('term-delete', args=[tm.pk])},
+          'actions': [link('No, take me back', reverse("term-edit", args=[tm.pk]), attrs={'class':'"button"'})],
+        } 
+        return render(request, 'taxonomy/delete_confirm_form.html', context)
 
 
 #@csrf_protect_m        
@@ -384,14 +350,12 @@ class BaseListView(TemplateView):
       #context['navigators'] = [mark_safe('<a href="/taxonomy/tree/list"/>tree list</a>')]
       context['messages'] = messages.get_messages(self.request)
       rows = []
-      #tree_queryset = Base.objects.order_by('weight', 'title').values_list('pk', 'title')
       base_queryset = api.base_ordered()
       for o in base_queryset:
           pk = o.pk
           rows.append({
             'pk': pk,
             'title': o.title,
-            #'weight': e.weight,
             'edit': link('edit', reverse('base-edit', args=[pk])),
             'list': link('list terms', reverse('term-list', args=[pk])),
             'add': link('add terms', reverse('term-add', args=[pk]))
@@ -445,7 +409,6 @@ def base_add(request):
     if request.method == 'POST':
         f = BaseForm(request.POST)
         if f.is_valid():
-            #t = Base.system.create(
             t = api.base_create(
                 title=f.cleaned_data['title'], 
                 slug=f.cleaned_data['slug'], 
@@ -453,7 +416,6 @@ def base_add(request):
                 is_single=f.cleaned_data['is_single'],
                 weight=f.cleaned_data['weight']
                 ) 
-            #cache_clear_tree_cache()
             msg = tmpl_instance_message("Created new Base", t.title)
             messages.add_message(request, messages.SUCCESS, msg)
             return HttpResponseRedirect(reverse('base-list'))
@@ -505,10 +467,8 @@ def base_edit(request, base_pk):
                 f.fields['is_single'].has_changed(tm.is_single, sgl)
                 and sgl == True
                 ):
-                #! need warning...
                 return HttpResponseRedirect(reverse('base-tosingleparent', args=[tm.pk]))
                 
-            #t = Base.system.update(
             t = api.base_update(
                 base_pk=tm.pk, 
                 title=f.cleaned_data['title'], 
@@ -517,7 +477,6 @@ def base_edit(request, base_pk):
                 is_single=f.cleaned_data['is_single'],
                 weight=f.cleaned_data['weight']
                 ) 
-            #cache_clear_tree_cache()
             msg = tmpl_instance_message("Update tree", f.cleaned_data['title'])
             messages.add_message(request, messages.SUCCESS, msg)
             return HttpResponseRedirect(reverse('base-list'))
@@ -558,10 +517,7 @@ def _base_delete(request, base_pk):
         return HttpResponseRedirect(reverse('base-list'))
              
       if (request.method == 'POST'):
-          #Base.system.delete(tm.pk)
           api.base_delete(tm.pk)
-          #cache_clear_flat_tree(tm.pk)
-          #cache_clear_tree_cache()
           msg = tmpl_instance_message("Deleted tree", tm.title)
           messages.add_message(request, messages.SUCCESS, msg)
           return HttpResponseRedirect(reverse('base-list'))

@@ -40,32 +40,14 @@ from django.views.generic.base import View
 from django.http import  HttpResponseRedirect #Http404,
 
 
-#class DeleteView(View):
-    #def post(self, request, *args, **kwargs):
-        #print('request')
-        #print(str(kwargs))
-        #epk = kwargs['element_pk'] 
-        #tpk = kwargs['term_pk']
 
-        #api.element_delete(tpk, epk)
-        ##pattern = request.GET.get('search')
-
-        ##try:
-            ##tm = Base.objects.get(pk__exact=base_pk)
-        ##except Base.DoesNotExist:
-            ##msg = "Base with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
-                ##base_pk
-            ##)
-            ##messages.add_message(request, messages.WARNING, msg) 
-        #msg = "Deleted Link"
-        #messages.add_message(request, messages.SUCCESS, msg)
-        #return HttpResponseRedirect(reverse('taxonomy-link-merge'))
-
-
-           
+          
 def ElementView(base_pk, element_title_url, ok_url, nav_links=[]):
     '''
-    A view with two AJAX HTML inputs for adding Models as elements in a taxonomy.
+    A view with two AJAX HTML inputs for adding Models as elements in a 
+    taxonomy. In english, 'add the id of an item to a category in the trees'.
+    
+    On correct configuration, this view also deletes.
     
     @param element_title_url where the element input finds AJAX info. Sensitive... 
     @param nav_links links for the navigation bar. Can be anything. Must be full-rendered.
@@ -102,7 +84,9 @@ def ElementView(base_pk, element_title_url, ok_url, nav_links=[]):
             epk = int(form.cleaned_data['element_pk'])
             # detect second submit          
             if (self.request.POST.get('delete')):
-                api.element_delete(tpk, epk)
+                with transaction.atomic(using=router.db_for_write(Element)):
+                    #return _element_delete(request, base_pk, element_pk)
+                    api.element_delete(tpk, epk)
                 msg = "Deleted Link"
                 messages.add_message(self.request, messages.SUCCESS, msg)
                 return HttpResponseRedirect(reverse('taxonomy-link-merge'))
@@ -131,113 +115,114 @@ def get_urls(model, base_pk, navigation_links=[]):
     ]
     return urls
       
-def merge(request, base_pk):
-    '''
-    Associate a pk for a foreign element with a term.
-    In english, 'add the id of an item to a category in the trees'.
-    Since the id only is used, there is no data to 'update', so this 
-    method is called 'merge'. If the id is already attached to the term
-    it will not be duplicated.
-    '''
-    try:
-        bm = api.base(base_pk)
-    except Base.DoesNotExist:
-        msg = "Base with ID '{0}' doesn't exist?".format(
-            base_pk
-        )
-        messages.add_message(request, messages.WARNING, msg) 
-        #! sort something here
-        #return HttpResponseRedirect(reverse('base-list'))
-        return 404
+#-
+#def merge(request, base_pk):
+    #'''
+    #Associate a pk for a foreign element with a term.
+    #In english, 'add the id of an item to a category in the trees'.
+    #Since the id only is used, there is no data to 'update', so this 
+    #method is called 'merge'. If the id is already attached to the term
+    #it will not be duplicated.
+    #'''
+    #try:
+        #bm = api.base(base_pk)
+    #except Base.DoesNotExist:
+        #msg = "Base with ID '{0}' doesn't exist?".format(
+            #base_pk
+        #)
+        #messages.add_message(request, messages.WARNING, msg) 
+        ##! sort something here
+        ##return HttpResponseRedirect(reverse('base-list'))
+        #return 404
         
-    if request.method == 'POST':
-        # submitted data, populate
-        f = ElementForm(request.POST)
+    #if request.method == 'POST':
+        ## submitted data, populate
+        #f = ElementForm(request.POST)
 
-        ## check whether it's valid:
-        if f.is_valid():
-            api.element_merge(
-                term_pks=[f.cleaned_data['term_pk']], 
-                element_pk=f.cleaned_data['element_pk']
-                ) 
-            t = term(f.cleaned_data['pk'])
-            msg = tmpl_instance_message("Associated Element Id {0} to Term".format(f.cleaned_data['element']), t.title)
-            messages.add_message(request, messages.SUCCESS, msg)
-            #return HttpResponseRedirect(reverse('term-list', args=[t.tree]))
-            return 404
-        else:
-            msg = "Please correct the errors below."
-            messages.add_message(request, messages.ERROR, msg)
-            # falls through to another render
+        ### check whether it's valid:
+        #if f.is_valid():
+            #api.element_merge(
+                #term_pks=[f.cleaned_data['term_pk']], 
+                #element_pk=f.cleaned_data['element_pk']
+                #) 
+            #t = api.term(f.cleaned_data['pk'])
+            #msg = tmpl_instance_message("Associated Element Id {0} to Term".format(f.cleaned_data['element']), t.title)
+            #messages.add_message(request, messages.SUCCESS, msg)
+            ##return HttpResponseRedirect(reverse('term-list', args=[t.tree]))
+            #return 404
+        #else:
+            #msg = "Please correct the errors below."
+            #messages.add_message(request, messages.ERROR, msg)
+            ## falls through to another render
             
-    else:
-        # empty form for add
-        f = ElementForm(initial=dict(
-          pk = tm.pk,
-          title = tm.title,
-          # set parents to the root (always exists, as an option) 
-          element = 0,
-          ))
+    #else:
+        ## empty form for add
+        #f = ElementForm(initial=dict(
+          #pk = tm.pk,
+          #title = tm.title,
+          ## set parents to the root (always exists, as an option) 
+          #element = 0,
+          #))
         
-    context={
-    'form': f,
-    'title': 'Add or reposition Elements',
-    'navigators': [
-      link('Main List', reverse('term-list', args=[tm.tree])),
-      ],
-    'submit': {'message':"Save", 'url': reverse('element-merge', args=[tm.pk])},
-    'actions': [],
-    }
+    #context={
+    #'form': f,
+    #'title': 'Add or reposition Elements',
+    #'navigators': [
+      #link('Main List', reverse('term-list', args=[tm.tree])),
+      #],
+    #'submit': {'message':"Save", 'url': reverse('element-merge', args=[tm.pk])},
+    #'actions': [],
+    #}
 
-    return render(request, 'taxonomy/generic_form.html', context)
+    #return render(request, 'taxonomy/generic_form.html', context)
 
-
-def _element_delete(request, base_pk, element_pk):
-      try:
-        tm = Base.objects.get(pk__exact=base_pk)
-      except Base.DoesNotExist:
-        msg = "Base with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
-            base_pk
-        )
-        messages.add_message(request, messages.WARNING, msg) 
-        return HttpResponseRedirect(reverse('tree-list'))
+#-
+#def _element_delete(request, base_pk, element_pk):
+      #try:
+        #tm = Base.objects.get(pk__exact=base_pk)
+      #except Base.DoesNotExist:
+        #msg = "Base with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
+            #base_pk
+        #)
+        #messages.add_message(request, messages.WARNING, msg) 
+        #return HttpResponseRedirect(reverse('tree-list'))
         
-      xterms = Element.system.tree_element_terms(tm.pk, element_pk)
-      if (not xterms):
-        msg = "Element with ID '{0}' not attached to any term in Base '{1}'. Perhaps it was deleted?".format(
-            element_pk,
-            html.escape(tm.title)
-        )
-        messages.add_message(request, messages.WARNING, msg) 
-        return HttpResponseRedirect(reverse('tree-list'))
+      #xterms = Element.system.tree_element_terms(tm.pk, element_pk)
+      #if (not xterms):
+        #msg = "Element with ID '{0}' not attached to any term in Base '{1}'. Perhaps it was deleted?".format(
+            #element_pk,
+            #html.escape(tm.title)
+        #)
+        #messages.add_message(request, messages.WARNING, msg) 
+        #return HttpResponseRedirect(reverse('tree-list'))
         
-      if (request.method == 'POST'):
-          #Term.system.delete(tm.pk)
-          api.element_delete(base_pk=tm.pk, element_pks=element_pk)
-          #cache_clear_flat_tree(tm.tree)
-          msg = tmpl_instance_message("Deleted element link", element_pk)
-          messages.add_message(request, messages.SUCCESS, msg)
-          return HttpResponseRedirect(reverse('term-list', args=[tm.pk]))
-      else:
-          message = '<p>Are you sure you want to delete the element link "{0}" from the tree "{1}"?</p><p>The element is attached to terms named {2}</p>'.format(
-            html.escape(element_pk),
-            html.escape(tm.title),
-            html.escape('"' + '", "'.join([t[1] for t in xterms]) + '"')
-            )
-          context={
-            'title': tmpl_instance_message("Delete element link '{0}' from Base".format(element_pk), tm.title),
-            'message': mark_safe(message),
-            'submit': {'message':"Yes, I'm sure", 'url': reverse('element-delete', args=[tm.pk, element_pk])},
-            'actions': [link('No, take me back', reverse("element-merge", args=[tm.pk]), attrs={'class':'"button"'})],
-          } 
-          return render(request, 'taxonomy/delete_confirm_form.html', context)
+      #if (request.method == 'POST'):
+          ##Term.system.delete(tm.pk)
+          #api.element_delete(base_pk=tm.pk, element_pks=element_pk)
+          ##cache_clear_flat_tree(tm.tree)
+          #msg = tmpl_instance_message("Deleted element link", element_pk)
+          #messages.add_message(request, messages.SUCCESS, msg)
+          #return HttpResponseRedirect(reverse('term-list', args=[tm.pk]))
+      #else:
+          #message = '<p>Are you sure you want to delete the element link "{0}" from the tree "{1}"?</p><p>The element is attached to terms named {2}</p>'.format(
+            #html.escape(element_pk),
+            #html.escape(tm.title),
+            #html.escape('"' + '", "'.join([t[1] for t in xterms]) + '"')
+            #)
+          #context={
+            #'title': tmpl_instance_message("Delete element link '{0}' from Base".format(element_pk), tm.title),
+            #'message': mark_safe(message),
+            #'submit': {'message':"Yes, I'm sure", 'url': reverse('element-delete', args=[tm.pk, element_pk])},
+            #'actions': [link('No, take me back', reverse("element-merge", args=[tm.pk]), attrs={'class':'"button"'})],
+          #} 
+          #return render(request, 'taxonomy/delete_confirm_form.html', context)
 
-
+#-
 #@csrf_protect_m        
-def delete(request, base_pk, element_pk):
-  # Lock the DB. Found this in admin.
-    with transaction.atomic(using=router.db_for_write(Element)):
-      return _element_delete(request, base_pk, element_pk)
+#def delete(request, base_pk, element_pk):
+  ## Lock the DB. Found this in admin.
+    #with transaction.atomic(using=router.db_for_write(Element)):
+      #return _element_delete(request, base_pk, element_pk)
   
 
 # from taxonomy import element

@@ -302,10 +302,14 @@ And you have a view for the front page. Add code like this::
         article = # get this data by your own method
         ...
         
-        # 1. Get the immdiate children of the taxonomy base. This explicitly states the parent is the api.ROOT i.e. get the bottom children. 
+        # 1. Get the immdiate children of the taxonomy base. This 
+        # explicitly states the parent is the api.ROOT i.e. get the
+        # bottom children. 
         children = api.term_children(7, api.ROOT)
         
-        # 2. Render the child data in some way. For this example, I only use the term title, and and assume some code in tmpl_li_link() does the rendering, not a template.
+        # 2. Render the child data in some way. For this example, I only
+        # use the term title, and and assume some code in tmpl_li_link()
+        # does the rendering, not a template.
         b = []
         for c in children:
             b.append(tmpl_li_link('/' + c.title, c.title))
@@ -340,7 +344,7 @@ As I said above, I wouldn't bother for a small site. Still, the taxonomy control
 
     New layout? 5 secs.
    
-You can use 'term_parents(base_pk, term_pk)' to return the parents of a term. This is  good for titles and the like, telling a user where they came from, or arre under. Note the plural---if you are using a multiple-parent taxonomy, the method may return several parents.
+You can use 'term_parents(base_pk, term_pk)' to return the parents of a term. This is  good for titles and the like, telling a user where they came from, or are under. Note the plural---if you are using a multiple-parent taxonomy, the method may return several parents.
  
 There are many methods in the API. term_ancestor_paths() gets the paths back from a term to the root. The code is nearly the same as the last code, but note the use of an index for '0',::
 
@@ -364,13 +368,13 @@ The result, with the fixed home link and some new CSS, might look like this,
 
     You know it as a 'breadcrumb'
 
-Yes, it is what web-designers call a 'breadcrumb trail'. There are also intruiging possibilities in a complementary method, term_descendant_paths(). This can show a user where they can go next. But be careful, it will often return multiple paths, even in a single-parent taxonomy.
+Yes, it is what web-designers call a 'breadcrumb trail'. There are also intruiging possibilities in a complementary method, term_descendant_paths(). This can show a user where they can go next. But be careful; the method will often return multiple paths, even in a single-parent taxonomy.
 
-And, by the way, that tree display the administration uses is available too,::
+And, by the way, that tree which the administration uses is available too,::
 
     def terms_flat_tree(base_pk, parent_pk=ROOT, max_depth=FULL_DEPTH):
 
-it returns a list of ordered term data from cache, with a depth attribute attached. The list is a named tuple, this,::
+it returns a list of ordered term data from cache, with a depth attribute attached. The list elements are a named tuple, this,::
 
     TermFTData = namedtuple('TermFTData', ['pk', 'title', 'slug', 'description', 'depth'])
     

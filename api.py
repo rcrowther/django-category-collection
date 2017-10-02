@@ -20,8 +20,8 @@ FULL_DEPTH = cache.FULL_DEPTH
 def base(base_pk):
     return cache.base(base_pk)
     
-def term(base_pk, term_pk):
-    return cache.term(base_pk, term_pk)
+def term(term_pk):
+    return cache.term(term_pk)
 
 def term_parents(base_pk, term_pk):
     return cache.term_parents(base_pk, term_pk)
@@ -58,11 +58,10 @@ def cache_clear():
 
 ## Model-based
 def base_create(title, slug, description, is_single, weight):
-    cache.base_clear()
     return Base.system.create(title, slug, description, is_single, weight)
     
 def base_update(base_pk, title, slug, description, is_single, weight):
-    cache.base_clear()
+    cache.base_clear(base_pk)
     return Base.system.update(base_pk, title, slug, description, is_single, weight)
 
 def base_delete(base_pk):
