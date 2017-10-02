@@ -13,7 +13,7 @@ from .models import Base, Term, BaseTerm, TermParent, Element
 
 # constants
 ROOT = TermParent.NO_PARENT
-
+FULL_DEPTH = cache.FULL_DEPTH
 
 # Cache-based
 
@@ -50,7 +50,7 @@ def term_descendant_pks(base_pk, term_pk):
 def base_term_pks(base_pk):
     return cache.base_term_pks(base_pk)
 
-def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=cache.FULL_DEPTH):
+def terms_flat_tree(base_pk, parent_pk=ROOT, max_depth=FULL_DEPTH):
     return cache.terms_flat_tree(base_pk, parent_pk, max_depth)
 
 def cache_clear():

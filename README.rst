@@ -284,7 +284,7 @@ A taxonomy container can organise data internally. It can also display informati
 
 Remember, a taxonomy container can perform many tasks. It may model a family tree. It may organise collections of photographs. Or it may run a menu system.
 
-Let's say the taxonomy is runs a menu system (this gives me a chance to show some methods visually). Personally, if the menu system was very simple, I'd not use a taxonomy---I'd put the navigation bar in a template. But if people need to change the menus, or the menu system becomes deep, or needs maintaining by others, you may consider a taxonomy.
+Let's say the taxonomy runs a menu system (this gives me a chance to show some methods visually). Personally, if the menu system was very simple, I'd not use a taxonomy---I'd put the navigation bar in a template. But if people need to change the menus, or the menu system becomes deep, or needs maintaining by others, you may consider a taxonomy.
 
 So you build a taxonomy, and the structure you have reflects the data you have. It may look like this,
 
@@ -315,7 +315,7 @@ And you have a view for the front page. Add code like this::
         nav['links'] = mark_safe(''.join(b))
         return render(request, 'test.html', {'nav': nav, 'article': article})
 
-Now we adjust the template. We have only rendered the children, and we'd like a 'home' link, so we start the render with a fixed 'home' link. That one will not change. Then put the links made from children after,::
+Now we adjust the template. We have only rendered the children, and we'd like a 'home' link, so we start the render with a fixed 'home' link. That one will not change. After thaat, the links made from children,::
 
         <ul>
           <li><a class="home" href="/">Home</a></li>{{ nav.links }}
@@ -338,9 +338,10 @@ As I said above, I wouldn't bother for a small site. Still, the taxonomy control
     :alt: breadcrumb screenshot
     :align: center
 
-    The new layout. 5 secs.
+    New layout? 5 secs.
    
-
+You can use 'term_parents(base_pk, term_pk)' to return the parents of a term. This is  good for titles and the like, telling a user where they came from, or arre under. Note the plural---if you are using a multiple-parent taxonomy, the method may return several parents.
+ 
 There are many methods in the API. term_ancestor_paths() gets the paths back from a term to the root. The code is nearly the same as the last code, but note the use of an index for '0',::
 
     path = api.term_ancestor_paths(7, 141)[0]
@@ -352,7 +353,7 @@ There are many methods in the API. term_ancestor_paths() gets the paths back fro
     nav['links'] = mark_safe(''.join(b))
     return render(request, 'test.html', {'nav': nav, 'article': paper})
 
-Why do we need to get path[0]?  If this was a multiple parent taxonomy, there would be many possible paths back to root (think about it...). term_ancestor_paths() will return them all. Handled well, this could lead to some innovative displays, or it could be bewildering. But we are looking at a single-parent taxonomy. there is only one path back to root, so we can safely assume that will be index [0].
+Why do we need to get path[0]?  If this was a multiple parent taxonomy, there would be many possible paths back to root (think about it...). term_ancestor_paths() will return them all. Handled well, this could lead to some innovative displays, or it could be bewildering. But we are looking at a single-parent taxonomy. There is only one path back to root, and we can safely assume that will be index [0].
 
 The result, with the fixed home link and some new CSS, might look like this,
 
@@ -363,9 +364,19 @@ The result, with the fixed home link and some new CSS, might look like this,
 
     You know it as a 'breadcrumb'
 
-Yes, it is what web-designers call a breadcrumb trail.
+Yes, it is what web-designers call a 'breadcrumb trail'. There are also intruiging possibilities in a complementary method, term_descendant_paths(). This can show a user where they can go next. But be careful, it will often return multiple paths, even in a single-parent taxonomy.
 
+And, by the way, that tree display the administration uses is available too,::
 
+    def terms_flat_tree(base_pk, parent_pk=ROOT, max_depth=FULL_DEPTH):
+
+it returns a list of ordered term data from cache, with a depth attribute attached. The list is a named tuple, this,::
+
+    TermFTData = namedtuple('TermFTData', ['pk', 'title', 'slug', 'description', 'depth'])
+    
+I see possibilities...
+
+ 
 Extra
 -----
 
