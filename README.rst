@@ -191,16 +191,16 @@ Right, that's it. Instances of the Model (in this example, 'Article') can now be
 
 ModelAdmin  only
 ++++++++++++++++
-You have an ModelAdmin, but no form, because you did some customization but nothing that altered the structure of the form. Do this,
+You have an ModelAdmin, but no form, because you did some customization but nothing that altered the structure of the form. Do this,::
 
-# 1. import this method (despite the capital letters, it's a method. But a class factory, which acts like, and returns, a class)
-from taxonomy.modeladmin import WithTaxonomyAdmin
-
-    # 2. inherit from WithTaxonomyAdmin, not forms.ModelAdmin. The meta-constructor requires a base_pk
-    class ArticleAdmin(WithTaxonomyAdmin(32)):
-        # 3. (WithTaxonomyAdmin acts as ModelAdmin, so...) you must declare the field 'taxonomy_term', or the field will not appear
-        fields = ('taxonomy_term', 'title', 'slug', 'summary', 'body', 'author')
-
+    # 1. import this method (despite the capital letters, it's a method. But a class factory, which acts like, and returns, a class)
+    from taxonomy.modeladmin import WithTaxonomyAdmin
+    
+        # 2. inherit from WithTaxonomyAdmin, not forms.ModelAdmin. The meta-constructor requires a base_pk
+        class ArticleAdmin(WithTaxonomyAdmin(32)):
+            # 3. (WithTaxonomyAdmin acts as ModelAdmin, so...) you must declare the field 'taxonomy_term', or the field will not appear
+            fields = ('taxonomy_term', 'title', 'slug', 'summary', 'body', 'author')
+  
 Now this admin form will show a field where instances of the model can be attached and detached from taxonomy terms. 
 
 This code is naturally DRY. It also behaves, for all other customisation, like a ModelAdmin form. Still, there is more... [TODO: not figured out if this can be done yet]
