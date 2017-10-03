@@ -40,7 +40,7 @@ None. Not even 'django.contrib.admin'.
 
 Install
 -------
-Put the code inside your project/emvironment.
+Put the code inside your project/emvironment. Then,
 
 'settings.py',::
 
@@ -56,6 +56,13 @@ Site-wide 'urls.py',::
         ...
     ]
 
+The wise app is humble,::
+
+  python manage.py taxonomy_uninstall
+
+If you wish to avoid accidents, delete the folder 'management'.
+
+
 One curiosity. If you look in taxonomy.urls,::
 
   urlpatterns = site.get_urls()
@@ -66,16 +73,9 @@ This wierd method takes an argument,::
 
 gives no-permission-required admin. Or use any 'contrib.admin' site you prefer.
 
- 
-Admin
------
-The core models can be maintained through Django admin, but the module uses a non-'admin' based set of forms and views for administration.
 
-The base look of the admin views and forms is similar to Django admin. However, the forms link in a different way, from overview lists to action, treating the app as a coherent whole. Start at http://127.0.0.1:8000/taxonomy and work from there.
-
-
-Fast start/Know what you are doing?
------------------------------------
+Fast start/want only to look/know what you want?
+------------------------------------------------
 Install (see up).
 
 Start at http://127.0.0.1:8000/taxonomy and build a base with some terms.
@@ -85,6 +85,14 @@ Look in taxonomy.api for methods. Probably,::
     def term_children(base_pk, term_pk)
 
 Put this in a view, then render the results.
+
+
+ 
+Admin
+-----
+The core models can be maintained through Django admin, but the module uses a non-'admin' based set of forms and views for administration.
+
+The base look of the admin views and forms is similar to Django admin. However, the forms link in a different way, from overview lists to action, treating the app as a coherent whole. Start at http://127.0.0.1:8000/taxonomy and work from there.
 
 
 General Structure

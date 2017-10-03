@@ -1,11 +1,8 @@
 from django.core.management.base import BaseCommand, CommandError
-from polls.models import Question as Poll
+from taxonomy.models import Base, Term, TermParent, BaseTerm, Element
 
 class Command(BaseCommand):
-    help = 'Uninstalls the category app, as far as possible'
-
-    def add_arguments(self, parser):
-        parser.add_argument('poll_id', nargs='+', type=int)
+    help = 'Uninstall the taxonomy app database tables, with further instructions'
 
     def drop(self, dbname):
         _DropSQL = "DROP TABLE %s"
