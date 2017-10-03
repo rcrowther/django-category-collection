@@ -248,7 +248,9 @@ def term_choices(base_pk):
 
 def term_choice_value(base_pk, model_instance):
     '''
-    Value to be used in a multiple select button
+    Value to be used in a multiple select button.
+    For parenting elements.
+    
     @return if instance is none, or a search for existing attached terms
     returns empty, then [TermParent.UNPARENT], else [instance_parent_pk, ...]
     '''

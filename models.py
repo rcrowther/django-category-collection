@@ -98,6 +98,7 @@ class Base(models.Model):
     title = models.CharField(
       max_length=255,
       db_index=True,
+      unique=True,
       help_text="Name for a tree of categories. Limited to 255 characters.",
       )
   

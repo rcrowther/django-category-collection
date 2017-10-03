@@ -58,7 +58,7 @@ Site-wide 'urls.py',::
 
 The wise app is humble,::
 
-  python manage.py taxonomy_uninstall
+    python manage.py taxonomy_uninstall -h
 
 If you wish to avoid accidents, delete the folder 'management'.
 
