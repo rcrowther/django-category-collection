@@ -1,7 +1,7 @@
 from django.db import  router, transaction #models,
 from django.views.generic import TemplateView
 
-from .models import Term, Base, TermParent, BaseTerm#, Element
+from .models import Term, Base #, TermParent, BaseTerm, Element
 from django import forms
 from django.contrib import messages
 from django.utils.safestring import mark_safe
@@ -10,70 +10,68 @@ from django.urls import reverse
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import render
 from . import api
-#? only for select choices?
 from django.forms import TypedChoiceField, TypedMultipleChoiceField
 from .inlinetemplates import link, submit, tmpl_instance_message
 
 
 #! build rows in code. These templates are pointless.
 class TermListView(TemplateView):
-  template_name = "taxonomy/term_list.html"
+    template_name = "taxonomy/term_list.html"
   
-  def get_context_data(self, **kwargs):
-      tree1 = api.base(int(kwargs['base_pk']))
-      if (tree1 == None):
-        #? cannt redirect in this view?
-        raise Http404(tmpl_404_redirect_message(Base))   
+    def get_context_data(self, **kwargs):
+        bapi = api.BaseAPI(kwargs['base_pk'])
+        try:
+            bm = bapi.base()
+        except Exception as e:
+            #? cannt redirect in this view?
+            raise Http404(tmpl_404_redirect_message(Base))   
+          
+        context = super(TermListView, self).get_context_data(**kwargs)
+        context['title'] = tmpl_instance_message("Terms in", bm.title)
+        context['tools'] = [link('Add', reverse('term-add', args=[bm.pk]))]
+        context['headers'] = [mark_safe('TITLE'), mark_safe('ACTION')]
+        context['messages'] = messages.get_messages(self.request)
+        context['navigators'] = [link('Base List', reverse('base-list'))]
+  
+        ## form of rows
+        # - name with view link
+        # - tid parent depth (all hidden)
+        # - 'edit' link
+        rows = []
         
-      context = super(TermListView, self).get_context_data(**kwargs)
-      context['title'] = tmpl_instance_message("Terms in", tree1.title)
-      context['tools'] = [link('Add', reverse('term-add', args=[tree1.pk]))]
-      context['headers'] = [mark_safe('TITLE'), mark_safe('ACTION')]
-      context['messages'] = messages.get_messages(self.request)
-      context['navigators'] = [link('Base List', reverse('base-list'))]
+        # Term row displays come in two forms...
+        if (not bapi.is_single):
+          # multiple can not show the structure of the tree
+          # (...could if the tree is small, but let's be consistent)
+          term_data_queryset = bapi.terms_ordered()
+          for o in term_data_queryset:
+            pk = o[0]
+            rows.append({
+              'view': o[1],
+              'edit': link('edit', reverse('term-edit', args=[pk]))
+            })    
+        else:
+          # single parentage can show the structure of the tree
+              #! can be none
+  
+          ftree = bapi.flat_tree()
+          
+          for td in ftree: 
+            #? Unicode nbsp is probably not long-term viable
+            # but will do for now
+            title = '\u00A0' * (td.depth*2)  + html.escape(td.title)          
+            pk = td.pk
+            # (extra context data here in case we enable templates/JS etc.)
+            rows.append({
+              'view': title,
+              'termpk': pk,
+              'depth': td.depth,
+              'edit': link('edit', reverse('term-edit', args=[pk]))
+            })
+        context['rows'] = rows
+        return context
 
-      ## form of rows
-      # - name with view link
-      # - tid parent depth (all hidden)
-      # - 'edit' link
-      rows = []
-      
-      # Term row displays come in two forms...
-      if (not tree1.is_single):
-        # multiple can not show the structure of the tree
-        # (...could if the tree is small, but let's be consistent)
-        term_data_queryset = api.base_terms_ordered(tree1.pk)
-        for o in term_data_queryset:
-          pk = o[0]
-          rows.append({
-            #'view': link(o[1], reverse('term-preview', args=[pk])),
-            'view': o[1],
-            'edit': link('edit', reverse('term-edit', args=[pk]))
-          })    
-      else:
-        # single parentage can show the structure of the tree
-            #! can be none
-
-        ftree = api.terms_flat_tree(tree1.pk)
-        
-        for td in ftree: 
-          #? Unicode nbsp is probably not long-term viable
-          # but will do for now
-          title = '\u00A0' * (td.depth*2)  + html.escape(td.title)          
-          pk = td.pk
-          # (extra context data here in case we enable templates/JS etc.)
-          rows.append({
-            #'view': link(title, reverse('term-preview', args=[pk])),
-            'view': title,
-            'termpk': pk,
-            'depth': td.depth,
-            'edit': link('edit', reverse('term-edit', args=[pk]))
-          })
-      context['rows'] = rows
-      
-      return context
-
-def term_all_select(base_pk):
+def term_all_select(base_api):
     '''
     All titles from a tree.
     The titles have a representation of structure by indenting with '-'.    
@@ -82,8 +80,8 @@ def term_all_select(base_pk):
     @param base_pk int or coercable string
     @return [(pk, marked title)...]
     '''
-    tree = api.terms_flat_tree(base_pk)
-    b = [(TermParent.NO_PARENT, '<root>')]    
+    tree = base_api.flat_tree()
+    b = [(api.ROOT, '<root>')]    
     for e in tree:
         b.append((e.pk, '-'*e.depth + html.escape(e.title)))  
     return b
@@ -99,27 +97,27 @@ def term_exclusive_select(base_pk, term_pk):
     '''
     # This value is mainly for the elimination of child selections when
     # choosing terms (to avoid circular dependencies)
-    tpk = int(term_pk)
-    bpk = int(base_pk)
-    desc_pks = api.term_descendant_pks(bpk, tpk)
-    desc_pks.add(tpk)
-    ftree = api.terms_flat_tree(bpk)
-    b = [(TermParent.NO_PARENT, '<root>')]    
+    tapi = api.TermAPI(term_pk, base_pk)
+    bapi = api.BaseAPI(base_pk)
+    desc_pks = tapi.descendant_pks()
+    desc_pks.add(tapi.pk)
+    ftree = bapi.flat_tree()
+    b = [(api.ROOT, '<root>')]    
     for t in ftree:
         if (t.pk not in desc_pks):
             b.append((t.pk, ('-'*t.depth) + t.title)) 
     return b
     
     
-def form_field_parent_select(base, term_pk=None):
+def form_field_parent_select(base_api, term_pk=None):
     '''
     @return a single or multi-selector field with term widget
     '''
     if (term_pk is None):
-        choices = term_all_select(base.pk)
+        choices = term_all_select(base_api)
     else:
-        choices = term_exclusive_select(base.pk, term_pk)
-    if (base.is_single):
+        choices = term_exclusive_select(base_api.pk, term_pk)
+    if (base_api.is_single):
       return TypedChoiceField(
       choices = choices,
       coerce=lambda val: int(val), 
@@ -171,26 +169,25 @@ class TermForm(forms.Form):
 
  
 def term_add(request, base_pk):
+    bapi = api.BaseAPI(base_pk)
     try:
-        b = api.base(int(base_pk))
+        bm = bapi.base()
     except Exception:
-        msg = "Base with ID '{0}' doesn't exist.".format(b.pk)
+        msg = "Base with ID '{0}' doesn't exist.".format(base_pk)
         messages.add_message(request, messages.WARNING, msg) 
-        return HttpResponseRedirect(reverse('term-list', args=[b.pk]))
+        return HttpResponseRedirect(reverse('term-list', args=[base_pk]))
 
     if request.method == 'POST':
-        # submitted data, populate
         f = TermForm(request.POST,
             initial=dict(
                       #base = b.pk,
                       )
             )
-        f.fields['parents'] = form_field_parent_select(b)
+        f.fields['parents'] = form_field_parent_select(bapi)
 
-        ## check whether it's valid:
         if f.is_valid():
-            t = api.term_create(
-                base_pk=b.pk, 
+            t = bapi.term_create(
+                #base_pk=bm.pk, 
                 parent_pks=f.cleaned_data['parents'],
                 title=f.cleaned_data['title'], 
                 slug=f.cleaned_data['slug'], 
@@ -199,7 +196,7 @@ def term_add(request, base_pk):
                 )
             msg = tmpl_instance_message("Created new Term", t.title)
             messages.add_message(request, messages.SUCCESS, msg)
-            return HttpResponseRedirect(reverse('term-list', args=[b.pk]))
+            return HttpResponseRedirect(reverse('term-list', args=[bm.pk]))
             
         else:
             msg = "Please correct the errors below."
@@ -211,17 +208,17 @@ def term_add(request, base_pk):
         f = TermForm(initial=dict(
           weight = 0,
           # set parents to the root (always exists, as an option) 
-          parents = [TermParent.NO_PARENT],
+          parents = [api.ROOT],
           ))
-        f.fields['parents'] = form_field_parent_select(b)
+        f.fields['parents'] = form_field_parent_select(bapi)
 
     context={
     'form': f,
     'title': 'Add Term',
     'navigators': [
-      link('Term List', reverse('term-list', args=[b.pk])),
+      link('Term List', reverse('term-list', args=[bm.pk])),
       ],
-    'submit': {'message':"Save", 'url': reverse('term-add', args=[b.pk])},
+    'submit': {'message':"Save", 'url': reverse('term-add', args=[bm.pk])},
     'actions': [],
     }    
 
@@ -232,15 +229,17 @@ def term_add(request, base_pk):
 
 
 def term_edit(request, term_pk):
+    tapi = api.TermAPI(term_pk)
     try:
-      tm = api.term(int(term_pk))
+        tm = tapi.term()
     except Term.DoesNotExist:
         msg = "Term with ID '{0}' doesn't exist.".format(term_pk)
         messages.add_message(request, messages.WARNING, msg)        
         # must be base-list, no tree id to work with 
         return HttpResponseRedirect(reverse('base-list'))
             
-    b = api.base(api.term_base_pk(term_pk))
+    bpk = tapi.base_pk()
+    bapi = api.BaseAPI(bpk)
             
     if request.method == 'POST':
         f = TermForm(request.POST,
@@ -248,10 +247,8 @@ def term_edit(request, term_pk):
               #base = b
               )
         )
-        f.fields['parents'] = form_field_parent_select(b, term_pk)
+        f.fields['parents'] = form_field_parent_select(bapi, tm.pk)
         if (not f.is_valid()):
-            #print('cleaned data:')
-            #print(str(f.cleaned_data))
             msg = "Term failed to validate?"
             messages.add_message(request, messages.ERROR, msg)
             # falls through to another render
@@ -260,9 +257,9 @@ def term_edit(request, term_pk):
             #! validate
             # - parent not between trees
             # - parent not child of itself
-            t = api.term_update(
+            t = tapi.update(
                 parent_pks=f.cleaned_data['parents'], 
-                term_pk=tm.pk, 
+                #term_pk=tm.pk, 
                 title=f.cleaned_data['title'], 
                 slug=f.cleaned_data['slug'], 
                 description=f.cleaned_data['description'], 
@@ -270,7 +267,7 @@ def term_edit(request, term_pk):
                 ) 
             msg = tmpl_instance_message("Updated Term", t.title)
             messages.add_message(request, messages.SUCCESS, msg)
-            return HttpResponseRedirect(reverse('term-list', args=[b.pk]))
+            return HttpResponseRedirect(reverse('term-list', args=[bpk]))
             
     else:
         # requested update form
@@ -279,19 +276,19 @@ def term_edit(request, term_pk):
             slug=tm.slug,
             description=tm.description,
             weight=tm.weight,
-            parents=api.term_parent_pks(b.pk, tm.pk)
+            parents=tapi.parent_pks()
           )
 
         #set initial data
         f = TermForm(initial=initial)
-        f.fields['parents'] = form_field_parent_select(b, term_pk)
+        f.fields['parents'] = form_field_parent_select(bapi, tm.pk)
         
     context={
     'form': f,
     'title': tmpl_instance_message('Edit term', tm.title),
     'navigators': [
       link('Base List', reverse('base-list')),
-      link('Term List', reverse('term-list', args=[b.pk]))
+      link('Term List', reverse('term-list', args=[bpk]))
       ],
     'submit': {'message':"Save", 'url': reverse('term-edit', args=[tm.pk])},
     'actions': [link('Delete', reverse("term-delete", args=[tm.pk]), attrs={'class':'"button alert"'})],
@@ -301,21 +298,22 @@ def term_edit(request, term_pk):
 
 
 def _term_delete(request, term_pk):
+    tapi = api.TermAPI(term_pk)
     try:
-        tm = api.term(int(term_pk))
+        tm = tapi.term()
     except Term.DoesNotExist:
         msg = "Term with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
             term_pk
         )
         messages.add_message(request, messages.WARNING, msg) 
         return HttpResponseRedirect(reverse('base-list'))
-    b = BaseTerm.system.base_pk(tm.pk)
+    bpk = tapi.base_pk()
       
     if (request.method == 'POST'):
         api.term_delete(tm.pk)
         msg = tmpl_instance_message("Deleted Term", tm.title)
         messages.add_message(request, messages.SUCCESS, msg)
-        return HttpResponseRedirect(reverse('term-list', args=[b]))
+        return HttpResponseRedirect(reverse('term-list', args=[bpk]))
     else:
         message = '<p>Are you sure you want to delete the Term "{0}"?</p><p>Deleting a term will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a term will not delete elements attached to the term. However, attached elements will be removed from the taxonomies)</p>'.format(
           html.escape(tm.title)
@@ -329,11 +327,12 @@ def _term_delete(request, term_pk):
         return render(request, 'taxonomy/delete_confirm_form.html', context)
 
 
-#@csrf_protect_m        
+        
 def term_delete(request, term_pk):
     with transaction.atomic(using=router.db_for_write(Term)):
       return _term_delete(request, term_pk)
   
+
 
 #! build rows in code. This template is pointless.
 class BaseListView(TemplateView):
@@ -348,7 +347,7 @@ class BaseListView(TemplateView):
       #context['navigators'] = [mark_safe('<a href="/taxonomy/tree/list"/>tree list</a>')]
       context['messages'] = messages.get_messages(self.request)
       rows = []
-      base_queryset = api.base_ordered()
+      base_queryset = api.Taxonomy.ordered()
       for o in base_queryset:
           pk = o.pk
           rows.append({
@@ -407,7 +406,7 @@ def base_add(request):
     if request.method == 'POST':
         f = BaseForm(request.POST)
         if f.is_valid():
-            t = api.base_create(
+            t = api.Taxonomy.base_create(
                 title=f.cleaned_data['title'], 
                 slug=f.cleaned_data['slug'], 
                 description=f.cleaned_data['description'], 
@@ -440,8 +439,9 @@ def base_add(request):
 
 
 def base_edit(request, base_pk):
+    bapi = api.BaseAPI(base_pk)
     try:
-      tm = Base.objects.get(pk__exact=base_pk)
+        tm = bapi.base()
     except Base.DoesNotExist:
         msg = "Base with ID '{0}' doesn't exist.".format(base_pk)
         messages.add_message(request, messages.WARNING, msg)        
@@ -467,8 +467,8 @@ def base_edit(request, base_pk):
                 ):
                 return HttpResponseRedirect(reverse('base-tosingleparent', args=[tm.pk]))
                 
-            t = api.base_update(
-                base_pk=tm.pk, 
+            t = bapi.update(
+                #base_pk=tm.pk, 
                 title=f.cleaned_data['title'], 
                 slug=f.cleaned_data['slug'], 
                 description=f.cleaned_data['description'], 
@@ -507,30 +507,31 @@ def base_edit(request, base_pk):
 
 
 def _base_delete(request, base_pk):
-      try:
-        tm = Base.objects.get(pk__exact=base_pk)
-      except Exception as e:
-        msg = "{0} with ID '{1}' doesn't exist. Perhaps it was deleted?".format('Base', tm.pk)
-        messages.add_message(request, messages.WARNING, msg) 
+    bapi = api.BaseAPI(base_pk)
+    try:
+      tm = bapi.base()
+    except Exception as e:
+      msg = "{0} with ID '{1}' doesn't exist. Perhaps it was deleted?".format('Base', tm.pk)
+      messages.add_message(request, messages.WARNING, msg) 
+      return HttpResponseRedirect(reverse('base-list'))
+           
+    if (request.method == 'POST'):
+        bapi.delete()
+        msg = tmpl_instance_message("Deleted tree", tm.title)
+        messages.add_message(request, messages.SUCCESS, msg)
         return HttpResponseRedirect(reverse('base-list'))
-             
-      if (request.method == 'POST'):
-          api.base_delete(tm.pk)
-          msg = tmpl_instance_message("Deleted tree", tm.title)
-          messages.add_message(request, messages.SUCCESS, msg)
-          return HttpResponseRedirect(reverse('base-list'))
-      else:
-          message = '<p>Are you sure you want to delete the Base "{0}"?</p><p>Deleting a tree will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a tree will not delete elements attached to the terms)</p>'.format(
-              html.escape(tm.title)
-              )    
-          context={
-            'title': tmpl_instance_message("Delete tree", tm.title),
-            'message': mark_safe(message),
-            'submit': {'message':"Yes, I'm sure", 'url': reverse('base-delete', args=[tm.pk])},
-            'actions': [link('No, take me back', reverse("base-edit", args=[tm.pk]), attrs={'class':'"button"'})],
-          } 
-          return render(request, 'taxonomy/delete_confirm_form.html', context)
-  
+    else:
+        message = '<p>Are you sure you want to delete the Base "{0}"?</p><p>Deleting a tree will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a tree will not delete elements attached to the terms)</p>'.format(
+            html.escape(tm.title)
+            )    
+        context={
+          'title': tmpl_instance_message("Delete tree", tm.title),
+          'message': mark_safe(message),
+          'submit': {'message':"Yes, I'm sure", 'url': reverse('base-delete', args=[tm.pk])},
+          'actions': [link('No, take me back', reverse("base-edit", args=[tm.pk]), attrs={'class':'"button"'})],
+        } 
+        return render(request, 'taxonomy/delete_confirm_form.html', context)
+
 
 #@csrf_protect_m  
 def base_delete(request, base_pk):
@@ -541,36 +542,40 @@ def base_delete(request, base_pk):
 
 
 def _base_to_single_parent(request, base_pk):
-      try:
-        tm = Base.objects.get(pk__exact=base_pk)
-      except Base.DoesNotExist:
-        msg = "Base with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
-            base_pk
-        )
-        messages.add_message(request, messages.WARNING, msg) 
-        return HttpResponseRedirect(reverse('base-list'))
-        
-      if (request.method == 'POST'):
-          count = TermParent.system.multiple_to_single(tm.pk)
-          api.base_set_is_single(tm.pk, True)
-          msg = tmpl_instance_message("Base is now single parent. Deleted {0} parent(s) in".format(count), tm.title)
-          messages.add_message(request, messages.SUCCESS, msg)
-          return HttpResponseRedirect(reverse('term-list', args=[tm.pk]))
-      else:
-          message = '<p>Are you sure you want to convert the Base "{0}"?</p><p>Converting to single parent will remove duplicate parents.</p><p>The parents to remove can not be selected. If you wish to affect parentage, then edit term parents (delete to one parant) before converting the tree.</p><p>(this action will not affect elements attached to the terms)</p>'.format(
-            html.escape(tm.title)
-            )
-          context={
-            'title': tmpl_instance_message("Convert to single parent tree", tm.title),
-            'message': mark_safe(message),
-            'submit': {'message':"Yes, I'm sure", 'url': reverse('base-tosingleparent', args=[tm.pk])},
-            'actions': [link('No, take me back', reverse("base-edit", args=[tm.pk]), attrs={'class':'"button"'})],
-          } 
-          return render(request, 'taxonomy/delete_confirm_form.html', context)
+    bapi = api.BaseAPI(base_pk)
+    try:
+      tm = bapi.base()
+    except Base.DoesNotExist:
+      msg = "Base with ID '{0}' doesn't exist. Perhaps it was deleted?".format(
+          base_pk
+      )
+      messages.add_message(request, messages.WARNING, msg) 
+      return HttpResponseRedirect(reverse('base-list'))
+      
+    if (request.method == 'POST'):
+        #count = TermParent.system.multiple_to_single(tm.pk)
+        #count = TermParent.system.multiple_to_single(tm.pk)
+        #api.base_set_is_single(tm.pk, True)
+        bapi.is_single = True 
+        #msg = tmpl_instance_message("Base is now single parent. Deleted {0} parent(s) in".format(count), tm.title)
+        msg = tmpl_instance_message("Base is now single parent ", tm.title)
+        messages.add_message(request, messages.SUCCESS, msg)
+        return HttpResponseRedirect(reverse('term-list', args=[tm.pk]))
+    else:
+        message = '<p>Are you sure you want to convert the Base "{0}"?</p><p>Converting to single parent will remove duplicate parents.</p><p>The parents to remove can not be selected. If you wish to affect parentage, then edit term parents (delete to one parant) before converting the tree.</p><p>(this action will not affect elements attached to the terms)</p>'.format(
+          html.escape(tm.title)
+          )
+        context={
+          'title': tmpl_instance_message("Convert to single parent tree", tm.title),
+          'message': mark_safe(message),
+          'submit': {'message':"Yes, I'm sure", 'url': reverse('base-tosingleparent', args=[tm.pk])},
+          'actions': [link('No, take me back', reverse("base-edit", args=[tm.pk]), attrs={'class':'"button"'})],
+        } 
+        return render(request, 'taxonomy/delete_confirm_form.html', context)
 
 
 #@csrf_protect_m        
 def base_to_singleparent(request, base_pk):
-    with transaction.atomic(using=router.db_for_write(TermParent)):
+    with transaction.atomic(using=router.db_for_write(Base)):
       return _base_to_single_parent(request, base_pk)
   

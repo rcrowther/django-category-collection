@@ -1,6 +1,5 @@
 from django.contrib.admin import ModelAdmin
 from .fields import TaxonomyTermField
-#from .element import form_set_select, element_save, element_remove
 from taxonomy import element
 
 #! could move to element module?
