@@ -120,7 +120,6 @@ def term_by_title(title):
 #    return model.objects.filter(pk__in=pks)
 
 
-
 class ElementAPI():
     def __init__(self, element_pk):
         self.pk = int(element_pk)
@@ -164,7 +163,7 @@ class TermAPI():
         return Term.system.delete(self.pk)
         
     def term(self):
-        return cache.term(self.pk)
+        return cache._term_cache.get(self.pk)
     
     def base_pk(self):
         return self._base_pk 
@@ -220,7 +219,7 @@ class BaseAPI():
 
     def base(self):
         ''' model of base data '''
-        return cache.base(self.pk)
+        return cache._base_cache.get(self.pk)
         
     def term_pks(self):
         ''' set of all (non-duplicated) term pks'''
@@ -278,7 +277,8 @@ def Taxonomy(title):
 Taxonomy.pk = lambda base_pk : BaseAPI(base_pk)
 Taxonomy.slug = lambda slug : BaseAPI(Base.objects.get(slug=slug).pk)
 # BaseTerm
-Taxonomy.term = lambda term_pk : BaseAPI(term_base_pk(term_pk))
+Taxonomy.term = lambda term_pk : cache._term_cache.get(term_pk)
+Taxonomy.base = lambda base_pk : cache._base_cache.get(base_pk)
 Taxonomy.ordered = _base_ordered
 Taxonomy.base_create = _base_create
 Taxonomy.cache_clear = _cache_clear
