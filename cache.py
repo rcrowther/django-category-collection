@@ -176,7 +176,7 @@ def timing(f):
         
 
 FULL_DEPTH = None
-@timing
+#! mutability will hurt, even here
 def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
     '''
     Return data from Terms as a flat tree.
@@ -199,14 +199,12 @@ def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
 
     _assert_cache(basepk)
     
-    #if (not (parentpk in this._term_cache) or (parentpk == TermParent.NO_PARENT))):
     if (not (this._term_cache.contains(parentpk) or (parentpk == TermParent.NO_PARENT))):
         raise KeyError('Flat tree can not be returned because given parent key not in the base: parent key:{0}'.format(parentpk))
         
     # jump access to these caches
     children = this._child_cache[basepk]
     parents = this._parent_cache[basepk]
-    #term_data = this._term_cache[basepk]
     term_data = this._term_cache
     _max_depth = (len(children) + 1) if (max_depth is None) else max_depth
     if ((_max_depth < 1) or (parentpk not in children)):
@@ -225,7 +223,7 @@ def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
             try:
                 pk = it.__next__()
             except StopIteration:
-                # exhausted. Pop another iter at a previous depth
+                # exhausted. Pop a iter at a previous depth
                 break
             td = term_data.get(pk)
             td.depth = depth
@@ -237,7 +235,7 @@ def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
                 stack.append(it)
                 # append new depth of iter
                 stack.append(iter(child_pks))
-                break
+                #break
     return tree
     
     
@@ -245,81 +243,62 @@ TermSTGroupData = namedtuple('TermSTGroupData', ['parent_rel', 'data'])
 TermSTData = namedtuple('TermFTData', ['pk', 'title', 'slug', 'description', 'rel_x'])
 TermSTLineData = namedtuple('TermSTGroupData', ['item_count', 'group_count', 'data'])
 
-#! cleaner, faster
-@timing
-def terms_flat_tree2(
-    base_pk,
-    parent_pk=TermParent.NO_PARENT, 
-    max_depth=FULL_DEPTH
-    ):
-    basepk = int(base_pk)
-    parentpk = int(parent_pk)
-    tree = []
-
-    _assert_cache(basepk)
-    
-    #if (not (parentpk in this._term_cache) or (parentpk == TermParent.NO_PARENT))):
-    if (not (this._term_cache.contains(parentpk) or (parentpk == TermParent.NO_PARENT))):
-        raise KeyError('Flat tree can not be returned because given parent key not in the base: parent key:{0}'.format(parentpk))
-        
-    # jump access to these caches
-    children = this._child_cache[basepk]
-    parents = this._parent_cache[basepk]
-    term_data = this._term_cache
-    #term_data = this._term_cache
-    _max_depth = (len(children) + 1) if (max_depth is None) else max_depth
-    if ((_max_depth < 1) or (parentpk not in children)):
-        # if depth == 0 this is an empty list. Also...
-        # if exists but has no children, must be a leaf
-        return []
-        
-    #rel_x = 0.5
-    #b = [[TermFTData(pk, td.title, td.slug, td.description, rel_x)]]
-    depth = 1
-    stack = [list(children.get(parentpk))]
-    lines = []
-    #rel_x = 0.5
-    #while (stack and (depth < _max_depth)):
-    while (stack):
-        child = stack[-1].pop()
-        if (not stack[-1]):
-            stack.pop()
-        #print(str(stack))
-        # push this on
-        td = term_data.get(child)
-        td.depth = depth
-        lines.append(td)
-        # ok, more children?
-        depth = len(stack)
-        xc = children.get(child)
-        if (xc and (depth < _max_depth)):
-            #print('append' + str(xc))
-            stack.append(list(xc))
-    return lines[1:] if (parentpk == TermParent.NO_PARENT) else lines
     
 def title(pk):
     return this._term_cache.get(pk).title
 import math
+
+def angle(b, x_from, x_to, y_from):
+    y_to = y_from - 24 
+    b.append('<polyline points="{0},{2} {0},{3} {1},{3}" style="fill:none;stroke:black;stroke-width:3" />'.format(x_from, x_to, y_from, y_to))
+
+def stub(b, x_from, y_from):
+    y_to = y_from - 24 
+    b.append('<line x1="{0}" y1="{1}" x2="{0}" y2="{2}" style="stroke:rgb(255,0,0);stroke-width:2" />'.format(x_from, y_from, y_to))
+
 def rend_flat_tree(tree, x_space, y_space, data_callback):
     # The dummy div is filled later when the height can be calculated 
     b = ['dummy_div']
     tree_len = len(tree)
+    x_half = math.floor(x_space / 2)
+    y_head = math.floor(y_space / 2)
     x_at_depth = [0 for i in range(len(tree))]
+    prev_pos_at_depth = [0 for i in range(len(tree))]
     last_depth = 0
     max_depth = 0
+    x = 0
+    y = 0
     for e in tree:
-          depth = e.depth
-          max_depth = max(max_depth, depth)
-          y = (depth - 1) * y_space
-          if (depth <= last_depth):
-              x_at_depth[depth] = x_at_depth[depth] + x_space
-          else:
-              x_at_depth[depth] = x_at_depth[last_depth]
-          x = x_at_depth[depth]
-          b.append('<span style="position:absolute; left:{0}px;top:{1}px">{2}</span>'.format(x, y, e.title))
-          last_depth = depth
-    b.append('</div>')
-    b[0] = '<div class="tree" style="position:relative; height:{0}px">'.format(max_depth * y_space)
+        depth = e.depth
+        max_depth = max(max_depth, depth)
+        
+        if (depth < last_depth):
+            stub(b, x + x_half, y)
+            for d in range(last_depth):
+              prev_pos_at_depth[d]
+        elif (depth > last_depth):
+            #angle(b, x + x_half, x + x_half + x_space, y)
+            pass
+        else:
+           angle(b, x + x_half, x + x_half + x_space, y)
+
+        y = y_head + ((depth - 1) * y_space)
+
+        if (depth <= last_depth):
+            x_at_depth[depth] = x_at_depth[depth] + x_space
+        else:
+            x_at_depth[depth] = x_at_depth[last_depth]
+        x = x_at_depth[depth]
+
+
+        #b.append('<span style="position:absolute; left:{0}px;top:{1}px">{2}</span>'.format(x, y, e.title))
+        b.append('<text x="{0}" y="{1}">{2}</text>'.format(x, y, e.title))
+        prev_pos_at_depth[depth] = (x, y)
+        last_depth = depth
+    #b.append('</div>')
+    b.append('</svg>')
+    #b[0] = '<div class="tree" style="position:relative; height:{0}px">'.format(max_depth * y_space)
+    b[0] = '<svg width="{0}" height="{1}">'.format(600, max_depth * y_space)
     return ''.join(b)
 
 def rend_flat_tree_right(tree, x_space, y_space, data_callback):
@@ -330,16 +309,16 @@ def rend_flat_tree_right(tree, x_space, y_space, data_callback):
     last_depth = 0
     max_depth = 0
     for e in reversed(tree):
-          depth = e.depth
-          max_depth = max(max_depth, depth)
-          y = (depth - 1) * y_space
-          if (depth <= last_depth):
-              x_at_depth[depth] = x_at_depth[depth] - x_space
-          else:
-              x_at_depth[depth] = x_at_depth[last_depth]
-          x = x_at_depth[depth]
-          b.append('<span style="position:absolute; left:{0}px;top:{1}px">{2}</span>'.format(x, y, e.title))
-          last_depth = depth
+        depth = e.depth
+        max_depth = max(max_depth, depth)
+        y = (depth - 1) * y_space
+        if (depth <= last_depth):
+            x_at_depth[depth] = x_at_depth[depth] - x_space
+        else:
+            x_at_depth[depth] = x_at_depth[last_depth]
+        x = x_at_depth[depth]
+        b.append('<span style="position:absolute; left:{0}px;top:{1}px">{2}</span>'.format(x, y, e.title))
+        last_depth = depth
     b.append('</div>')
     b[0] = '<div class="tree" style="position:relative; height:{0}px">'.format(max_depth * y_space)
     return ''.join(b)
