@@ -267,28 +267,18 @@ def form_set_select(form, taxonomy_field_name, base_pk, instance=None):
     @return a single or multi-selector field with choices. Widget is
     a default HTML 'select'.
     '''
-    #assert base(base_pk) is not None, "base_pk can not be found: base_pk:{0}".format(base_pk)
     bapi = api.BaseAPI(base_pk)
-    if (bapi.is_single):
-      field = TypedChoiceField(
+    field = TypedMultipleChoiceField(
       coerce=lambda val: int(val), 
       empty_value=-2,
       label='Taxonomy',
       help_text="Choose a term to parent this item"
-      )
-    else:
-      field = TypedMultipleChoiceField(
-      coerce=lambda val: int(val), 
-      empty_value=-2,
-      label='Taxonomy',
-      help_text="Choose a term to parent this item"
-      )
+    )
     form.fields[taxonomy_field_name] = field
     form.fields[taxonomy_field_name].choices = term_choices(bapi)
     form.initial[taxonomy_field_name] = term_choice_value(bapi, instance)
         
 def save(form, taxonomy_field_name, base_pk, obj):
-    #assert base(base_pk) is not None, "base_pk can not be found: base_pk:{0}".format(base_pk)
     eapi = api.ElementAPI(obj.pk)
     eapi.base_delete(base_pk)
     taxonomy_terms = form.cleaned_data.get(taxonomy_field_name)
@@ -300,6 +290,5 @@ def save(form, taxonomy_field_name, base_pk, obj):
         eapi.merge(taxonomy_terms)
 
 def remove(base_pk, obj):
-    #assert base(base_pk) is not None, "base_pk can not be found: tree_pk:{0}".format(base_pk)
     eapi = api.ElementAPI(obj.pk)
     eapi.base_delete(base_pk)
