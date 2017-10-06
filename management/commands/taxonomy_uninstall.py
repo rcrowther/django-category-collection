@@ -1,15 +1,18 @@
 from django.core.management.base import BaseCommand, CommandError
 from taxonomy.models import Base, Term, TermParent, BaseTerm, Element
+from django.db import connection
+
+
 
 class Command(BaseCommand):
     help = 'Uninstall the taxonomy app database tables, with further instructions'
 
     def drop(self, dbname):
-        _DropSQL = "DROP TABLE %s"
+        _DropSQL = "DROP TABLE {}"
 
         c = connection.cursor()
         try:
-            c.execute(_DropSQL, [dbname])
+            c.execute(_DropSQL.format(dbname))
         finally:
             c.close()
             
