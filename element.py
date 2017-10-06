@@ -13,7 +13,7 @@ from . import fields
 from .views import GenericTitleSearchJSONView
 from . import api
 from .inlinetemplates import link, submit, tmpl_instance_message
-
+from .models import Element
 
 class ElementForm(forms.Form):
     '''

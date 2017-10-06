@@ -21,7 +21,7 @@ The app is called 'categories'. But the app is called, and the URLs are rooted, 
 
 Data layout in the taxonomy
 ---------------------------
-There are several ways to define a taxonomy structure. This taxonomy establishes 'bases'. Each base can contain several trees of 'terms'.
+There are several ways to define a taxonomy structure. This app establishes 'bases'. Each base can contain several trees of 'terms'.
 
 You can only attach data elements to terms, not the 'base'. If you would like a taxonomy where elements can be attached to the base, start a base then add a single term which will be the 'root term'. Build from there e.g.::
 
@@ -74,6 +74,14 @@ This wierd method takes an argument,::
 gives no-permission-required admin. Or use any 'contrib.admin' site you prefer.
 
 
+
+Current state
+-------------
+'Draft'
+
+I'm not a Python programmer, and am new to Django. On the other hand, this app is not 'ALPHA'; if used as recommended it can never destroy your data, by design. The API was, in part, introduced to give some confidence in stability. And that's on Version 2.
+
+
 Fast start/want only to look/know what you want?
 ------------------------------------------------
 Install (see up).
@@ -82,7 +90,7 @@ Start at http://127.0.0.1:8000/taxonomy and build a base with some terms.
  
 Look in taxonomy.api for methods. Probably,::
 
-    def term_children(base_pk, term_pk)
+    api.Taxonomy.term(term_pk)
 
 Put this in a view, then render the results.
 
@@ -293,13 +301,6 @@ and place,::
 in template heads. Or the field will not react.
 
 
-Current state
--------------
-'Draft'
-
-I'm not a Python programmer, and am new to Django. On the other hand, this app is not 'ALPHA'; if used as recommended it can never destroy your data, by design. The API was, in part, introduced to give some confidence in stability.
-
-
 Displaying taxonomy information
 --------------------------------
 A taxonomy container can organise data internally. It can also display information to a user. This is a chance for all you front-end developers to show your skills. I'll show basics.
@@ -318,6 +319,9 @@ So you build a taxonomy, and the structure you have reflects the data you have. 
 
 This taxonomy base has the id 7 (the url on the edit bar showed this).
 
+
+Displaying children/parents (a navigation bar)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 And you have a view for the front page. Add code like this::
 
     def front_page(request): 
@@ -367,8 +371,11 @@ As I said above, for a small site, I wouldn't bother. Still, taxonomy control ha
     New layout? 5 secs.
    
 You can use 'term_parents(base_pk, term_pk)' to return the parents of a term. This is  good for titles and the like, telling a user where they came from, or are under. Note the plural---if you are using a multiple-parent taxonomy, the method may return several parents.
- 
-There are many methods in the API. term_ancestor_paths() gets the paths back from a term to the root. The code is nearly the same as the last code, but note the use of an index for '0',::
+
+
+Displaying paths (breadcrumb trails)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+There are many methods in the API. TermAPI.term_ancestor_paths() gets the paths back from a term to the root. The code is nearly the same as the last code, but note the use of an index for '0',::
 
     path = api.term_ancestor_paths(7, 141)[0]
     
@@ -412,11 +419,13 @@ The code which builds the 'select widget' data is in the API,::
 
 It's rare to see on websites but many displays are possible. The 'inlinetemplates' module provides a class TreeRender. This is only suitable for very small taxonomies but nice to look at and efficient. Assume a Base 'grasses' has been built, and a view/template 'article' exists in which we can put the results. Put this in the view,::
 
+    from django.utils.safestring import mark_safe
+    from django.utils import html
     from taxonomy import api
     from taxonomy.inlinetemplates import TreeRender
 
     def get_title(pk):
-        return api.Taxonomy.term(pk).title
+        return html.escape(api.Taxonomy.term(pk).title)
     ...
     # 1. Get the tree
     bapi = api.Taxonomy.slug('angiosperms-flowering-plants')
@@ -443,12 +452,30 @@ This code renders as,
     :alt: 2D render of a base
     :align: center
      
-The result is an active DOM-based webpage. An override of TreeRender, AnchorTreeRender, will deliver clickable links. You may like to know also that this example is lightweight on the coder, server (microseconds), and the user---stock HTML, no Javascript, no CSS. But others can follow this path and go crazy.
+The result is an active DOM-based webpage. An override of TreeRender, AnchorTreeRender, will deliver clickable links. You may like to know also that this example is lightweight on the coder(no libraries), server (microseconds), and the user(stock HTML, no Javascript, no CSS). But others can follow this path and go crazy.
 
 
 
 Extra
 -----
+The API
+~~~~~~~
+The API is class-based (or, in places, object-based),:
+    
+    TermAPI(term_pk)
+    BaseAPI(base_pk)
+    ElementAPI(element_pk)
+    Taxonomy
+  
+Then start using the methods.
+ 
+The class code tries to do the right thing by the rest of the code. It sometimes lazy instanciates, cleans up after database changes, that kind of action.
+
+Notes;
++ You may find methods in places you do not expect. To add a new term, look in BaseAPI. A new term goes into a Base,
++ If you want the information from a Term or Base, look at api.Taxonomy.term() and api.Taxonomy.base(). 
+
+
 
 Code organisation
 ~~~~~~~~~~~~~~~~~

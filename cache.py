@@ -159,11 +159,6 @@ def _assert_cache(base_pk):
           for h in TermParent.system.iter_ordered(base_pk):
               _cache_populate(base_pk, h)
               
-          # populate term data
-          #this._term_cache[base_pk] = {}
-          #tc = this._term_cache[base_pk]
-          #for t in BaseTerm.system.term_iter(base_pk):
-          #    tc[t.pk] = t
 
 import time
 def timing(f):
@@ -178,7 +173,7 @@ def timing(f):
 
 FULL_DEPTH = None
 #! mutability will hurt, even here
-def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
+def flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
     '''
     Return data from Terms as a flat tree.
     Each item is an TermFTData, which is term data extended with a
@@ -191,8 +186,8 @@ def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
     @param parent_pk start from the children of this term. int or coercable string.
     @param max_depth prune the tree beyond this value. Corresponds with
      depth (0 will return an empty list, 1 will return reows from depth 1, ...) 
-    @return list of TermFTData(pk, title, slug, description, depth).
-    Empty list if tree has no terms, max_depth = 0 etc.. 
+    @return list of Term boosted with depth (pk, title, slug, description, depth).
+    Empty list if tree has no terms or max_depth = 0. 
     '''
     basepk = int(base_pk)
     parentpk = int(parent_pk)
@@ -228,10 +223,8 @@ def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
                 break
             td = term_data.get(pk)
             td.depth = depth
-            print('flat tree app' + str(td.pk) + td.title + str())
-            tree.append(td)
+            yield td
             child_pks = children.get(pk)
-            print(str(child_pks))
             if (child_pks and (depth < _max_depth)):
                 # append current iter, will return after processing children
                 stack.append(it)
@@ -240,9 +233,9 @@ def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
                 break
     return tree
     
-def flat_tree_iter(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
+def flat_tree_pks(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
     '''
-    Return data from Terms as a flat tree.
+    Return pk data as a flat tree.
     Each item is an TermFTData, which is term data extended with a
     'depth' attribute  (pk, title, description, depth). The depth value
     is from the given parent (not the tree top, unless the tree root
@@ -253,8 +246,7 @@ def flat_tree_iter(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH
     @param parent_pk start from the children of this term. int or coercable string.
     @param max_depth prune the tree beyond this value. Corresponds with
      depth (0 will return an empty list, 1 will return reows from depth 1, ...) 
-    @return list of TermFTData(pk, title, slug, description, depth).
-    Empty list if tree has no terms, max_depth = 0 etc.. 
+    @return [(term_pk, depth)...]. Empty list if tree has no terms or max_depth = 0. 
     '''
     basepk = int(base_pk)
     parentpk = int(parent_pk)
@@ -288,10 +280,6 @@ def flat_tree_iter(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH
             except StopIteration:
                 # exhausted. Pop a iter at a previous depth
                 break
-            #td = term_data.get(pk)
-            #td.depth = depth
-            #tree.append(TermFTData(pk, td.title, td.slug, td.description, depth))
-            #tree.append(td)
             yield (depth, pk)
             child_pks = children.get(pk)
             if (child_pks and (depth < _max_depth)):

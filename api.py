@@ -1,12 +1,5 @@
-from taxonomy import cache
-#from .cache import (
-#FULL_DEPTH,
-#base, term, term_parents, term_children, 
-#term_ancestor_paths, term_descendant_paths,
-#base_term_pks, terms_flat_tree
-#)
-
 from .models import Base, Term, BaseTerm, TermParent, Element
+from taxonomy import cache
  
 ## Facade for cache and Model/Model manager methods for consistent 
 # (non-web restricted) interface
@@ -86,8 +79,8 @@ UNPARENT = TermParent.UNPARENT
     #cache.tree_clear(term_pk)
     #return Term.system.delete(term_pk)
 
-def term_by_title(title):
-    return Term.objects.get(title__exact=title)
+#def term_by_title(title):
+#    return Term.objects.get(title__exact=title)
 
 #? and a base?
 #def term_base_pk(term_pk):
@@ -242,7 +235,10 @@ class BaseAPI():
         return cache.term_children(self.pk, ROOT)
         
     def flat_tree(self, parent_pk=ROOT, max_depth=FULL_DEPTH):
-        return cache.terms_flat_tree(self.pk, parent_pk, max_depth)
+        return cache.flat_tree(self.pk, parent_pk, max_depth)
+
+    def flat_tree_pks(self, parent_pk=ROOT, max_depth=FULL_DEPTH):
+        return cache.flat_tree_pks(self.pk, parent_pk, max_depth)
         
     def stacked_tree(self, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
         return cache.stacked_tree_iter(self.pk, parent_pk, max_depth)

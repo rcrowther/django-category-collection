@@ -310,7 +310,7 @@ def _term_delete(request, term_pk):
     bpk = tapi.base_pk()
       
     if (request.method == 'POST'):
-        api.term_delete(tm.pk)
+        tapi.delete()
         msg = tmpl_instance_message("Deleted Term", tm.title)
         messages.add_message(request, messages.SUCCESS, msg)
         return HttpResponseRedirect(reverse('term-list', args=[bpk]))
