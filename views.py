@@ -12,10 +12,10 @@ from .models import Term #, Base, TermParent, BaseTerm, Element
 # check SQL queries
 # SQL commits and transactions?
 # do more generators in the manager SQL, they seem natural
-# refactor NOPARENT to NO_PARENT
+#x refactor NOPARENT to NO_PARENT
 
 ## cache
-# bases needs a similar api to term and count
+#x bases needs a similar api to term and count
 
 ## admin
 # paginate lists
@@ -30,8 +30,8 @@ from .models import Term #, Base, TermParent, BaseTerm, Element
 # generictemplate module detection
 
 ## forms
-# consider FormViews for everything. 
-# Compare against adminForms, which seem to have more inpput protection
+#x consider FormViews for everything. 
+# Compare against adminForms, which seem to have more input protection
 # do the transaction thing on all deletes...
 # from django.db import models, router, transaction
 # ...and consider csrf  
@@ -42,10 +42,10 @@ from .models import Term #, Base, TermParent, BaseTerm, Element
 ## fields/widgets
 # make a stub field, now you've decided they all need replacing
 # writeup on widget swapping
-# fancy term widget? SVG?
+#x fancy term widget? SVG?
 
 ## usage
-# done nothing here, nothing
+# convert code to new API
 
 import json
 from django.http import JsonResponse

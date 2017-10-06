@@ -265,8 +265,11 @@ def Taxonomy(title):
     Taxonomy.pk(base_pk)
     Taxonomy.slug(slug)
     Taxonomy.term(term_pk)
+    Taxonomy.base(base_pk)
     also:
     Taxonomy.base_ordered() returns a QuerySet of bases
+    Taxonomy.base_create() 
+    Taxonomy.cache_clear() 
     @throws Base.DoesNotExist
     @return an BaseAPI object
     '''
@@ -275,7 +278,6 @@ def Taxonomy(title):
     
 Taxonomy.pk = lambda base_pk : BaseAPI(base_pk)
 Taxonomy.slug = lambda slug : BaseAPI(Base.objects.get(slug=slug).pk)
-# BaseTerm
 Taxonomy.term = lambda term_pk : cache._term_cache.get(term_pk)
 Taxonomy.base = lambda base_pk : cache._base_cache.get(base_pk)
 Taxonomy.ordered = _base_ordered

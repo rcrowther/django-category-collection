@@ -329,10 +329,10 @@ And you have a view for the front page. Add code like this::
         ...
         
         # 1. Get the immdiate children of the taxonomy base. This 
-        # explicitly states the parent is the api.ROOT i.e. get the
-        # bottom children. 
-        children = api.term_children(7, api.ROOT)
-        
+        # is a shortcut-from a Base, children() will get terms at root. 
+        bapi = api.Taxonomy.slug('site-structure') 
+        children = bapi.children()
+    
         # 2. Render the child data in some way. For this example, I only
         # use the term title, and and assume some code in tmpl_li_link()
         # does the rendering, not a template.
