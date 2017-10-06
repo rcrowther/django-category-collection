@@ -228,27 +228,34 @@ def terms_flat_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPT
                 break
             td = term_data.get(pk)
             td.depth = depth
-            #tree.append(TermFTData(pk, td.title, td.slug, td.description, depth))
+            print('flat tree app' + str(td.pk) + td.title + str())
             tree.append(td)
             child_pks = children.get(pk)
+            print(str(child_pks))
             if (child_pks and (depth < _max_depth)):
                 # append current iter, will return after processing children
                 stack.append(it)
                 # append new depth of iter
                 stack.append(iter(child_pks))
-                #break
+                break
     return tree
     
+def flat_tree_iter(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
+    '''
+    Return data from Terms as a flat tree.
+    Each item is an TermFTData, which is term data extended with a
+    'depth' attribute  (pk, title, description, depth). The depth value
+    is from the given parent (not the tree top, unless the tree root
+    is specified as parent). Since depth 0 is the parent, if any rows
+    appear in the output, the depths will start at 1.
     
-#STGroupData = namedtuple('STGroupData', ['parent_idx', 'group'])
-class STGroupData:
-    def __init__(self, parent_idx, group):
-        self.parent_idx = parent_idx
-        self.data = group
-    def __str__():
-        return 'STG-' + str(self.parent_idx)
-        
-def stacked_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
+    @param base_pk int or coercable string
+    @param parent_pk start from the children of this term. int or coercable string.
+    @param max_depth prune the tree beyond this value. Corresponds with
+     depth (0 will return an empty list, 1 will return reows from depth 1, ...) 
+    @return list of TermFTData(pk, title, slug, description, depth).
+    Empty list if tree has no terms, max_depth = 0 etc.. 
+    '''
     basepk = int(base_pk)
     parentpk = int(parent_pk)
     tree = []
@@ -270,66 +277,123 @@ def stacked_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
         
     # Stack of levels to process. Each level is an iter.
     # preload with the first set of children
-    depth = 1
-    layer = [list(children[parentpk])]
-    next_layer = []
-    layers = []
-    data_layer = [STGroupData(0, list(children[parentpk]))]
-    while (layer and depth <= _max_depth):
-            layers.append(data_layer)
-            next_layer = []
-            data_layer = []
-            idx = 0
-            for group in layer:
-                for pk in group:
-                    xc = children.get(pk)
-                    if (xc):
-                        data_layer.append(STGroupData(idx, list(xc)))
-                        next_layer.append(list(xc))
-                    idx = idx + 1
-            layer = next_layer
-            depth = depth + 1
-
-    return layers
-
-def stacked_tree_iter(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
-    basepk = int(base_pk)
-    parentpk = int(parent_pk)
-    tree = []
-
-    _assert_cache(basepk)
+    stack = [iter(children[parentpk])]
+    depth = 0
+    while (stack):
+        depth = len(stack)
+        it = stack.pop()
+        while(True):
+            try:
+                pk = it.__next__()
+            except StopIteration:
+                # exhausted. Pop a iter at a previous depth
+                break
+            #td = term_data.get(pk)
+            #td.depth = depth
+            #tree.append(TermFTData(pk, td.title, td.slug, td.description, depth))
+            #tree.append(td)
+            yield (depth, pk)
+            child_pks = children.get(pk)
+            if (child_pks and (depth < _max_depth)):
+                # append current iter, will return after processing children
+                stack.append(it)
+                # append new depth of iter
+                stack.append(iter(child_pks))
+                break
+    return tree
     
-    if (not (this._term_cache.contains(parentpk) or (parentpk == TermParent.NO_PARENT))):
-        raise KeyError('Flat tree can not be returned because given parent key not in the base: parent key:{0}'.format(parentpk))
+
+    
+#STGroupData = namedtuple('STGroupData', ['parent_idx', 'group'])
+#class STGroupData:
+    #def __init__(self, parent_idx, group):
+        #self.parent_idx = parent_idx
+        #self.data = group
+    #def __str__():
+        #return 'STG-' + str(self.parent_idx)
         
-    # jump access to these caches
-    children = this._child_cache[basepk]
-    parents = this._parent_cache[basepk]
-    term_data = this._term_cache
-    _max_depth = (len(children) + 1) if (max_depth is None) else max_depth
-    if ((_max_depth < 1) or (parentpk not in children)):
-        # if depth == 0 this is an empty list. Also...
-        # if exists but has no children, must be a leaf
-        return []
-    depth = 1
-    layer = [list(children[parentpk])]
-    next_layer = []
-    layers = []
-    data_layer = [STGroupData(0, list(children[parentpk]))]
-    while (layer and depth <= _max_depth):
-            yield data_layer;
-            next_layer = []
-            data_layer = []
-            idx = 0
-            for group in layer:
-                for pk in group:
-                    xc = children.get(pk)
-                    if (xc):
-                        data_layer.append(STGroupData(idx, list(xc)))
-                        next_layer.append(list(xc))
-                    idx = idx + 1
-            layer = next_layer
-            depth = depth + 1
+#def stacked_tree(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
+    #basepk = int(base_pk)
+    #parentpk = int(parent_pk)
+    #tree = []
+
+    #_assert_cache(basepk)
+    
+    #if (not (this._term_cache.contains(parentpk) or (parentpk == TermParent.NO_PARENT))):
+        #raise KeyError('Flat tree can not be returned because given parent key not in the base: parent key:{0}'.format(parentpk))
+        
+    ## jump access to these caches
+    #children = this._child_cache[basepk]
+    #parents = this._parent_cache[basepk]
+    #term_data = this._term_cache
+    #_max_depth = (len(children) + 1) if (max_depth is None) else max_depth
+    #if ((_max_depth < 1) or (parentpk not in children)):
+        ## if depth == 0 this is an empty list. Also...
+        ## if exists but has no children, must be a leaf
+        #return []
+        
+    ## Stack of levels to process. Each level is an iter.
+    ## preload with the first set of children
+    #depth = 1
+    #layer = [list(children[parentpk])]
+    #next_layer = []
+    #layers = []
+    #data_layer = [STGroupData(0, list(children[parentpk]))]
+    #while (layer and depth <= _max_depth):
+            #layers.append(data_layer)
+            #next_layer = []
+            #data_layer = []
+            #idx = 0
+            #for group in layer:
+                #for pk in group:
+                    #xc = children.get(pk)
+                    #if (xc):
+                        #data_layer.append(STGroupData(idx, list(xc)))
+                        #next_layer.append(list(xc))
+                    #idx = idx + 1
+            #layer = next_layer
+            #depth = depth + 1
+
+    #return layers
+
+#def stacked_tree_iter(base_pk, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
+    #basepk = int(base_pk)
+    #parentpk = int(parent_pk)
+    #tree = []
+
+    #_assert_cache(basepk)
+    
+    #if (not (this._term_cache.contains(parentpk) or (parentpk == TermParent.NO_PARENT))):
+        #raise KeyError('Flat tree can not be returned because given parent key not in the base: parent key:{0}'.format(parentpk))
+        
+    ## jump access to these caches
+    #children = this._child_cache[basepk]
+    #parents = this._parent_cache[basepk]
+    #term_data = this._term_cache
+    #_max_depth = (len(children) + 1) if (max_depth is None) else max_depth
+    #if ((_max_depth < 1) or (parentpk not in children)):
+        ## if depth == 0 this is an empty list. Also...
+        ## if exists but has no children, must be a leaf
+        #return []
+    #depth = 1
+    #layer = [list(children[parentpk])]
+    #next_layer = []
+    #layers = []
+    #data_layer = [STGroupData(0, list(children[parentpk]))]
+    #while (layer and depth <= _max_depth):
+            #yield data_layer;
+            #next_layer = []
+            #data_layer = []
+            #idx = 0
+            #for group in layer:
+                #for pk in group:
+                    #xc = children.get(pk)
+                    #if (xc):
+                        #data_layer.append(STGroupData(idx, list(xc)))
+                        #next_layer.append(list(xc))
+                    #idx = idx + 1
+            #layer = next_layer
+            #depth = depth + 1
 
     
 def title(pk):
@@ -339,119 +403,111 @@ def title_link(pk):
     t = this._term_cache.get(pk).title
     return ('http://google.com' , t)
     
-import math
 
 
-class RendBeam:
-    stem_template = '<line x1="{0}" y1="{1}" x2="{0}" y2="{2}" style="stroke:{3};stroke-width:2" />'
-    beam_template = '<line x1="{0}" y1="{2}" x2="{1}" y2="{2}" style="stroke:{3};stroke-width:2" />'
+#class RendBeam:
+    #stem_template = '<line x1="{0}" y1="{1}" x2="{0}" y2="{2}" style="stroke:{3};stroke-width:2" />'
+    #beam_template = '<line x1="{0}" y1="{2}" x2="{1}" y2="{2}" style="stroke:{3};stroke-width:2" />'
 
-    def __init__(self, b, y, height, x_offset=0, color='black'):
-        self.b = b
-        self.y = y
-        self.x_offset = x_offset
-        self.y_beam = y - height
-        self.height = height
-        self.first_stem_x = None
-        self.last_stem_x = None
-        self.first = True
-        self.color = color
+    #def __init__(self, b, y, height, x_offset=0, color='black'):
+        #self.b = b
+        #self.y = y
+        #self.x_offset = x_offset
+        #self.y_beam = y - height
+        #self.height = height
+        #self.first_stem_x = None
+        #self.last_stem_x = None
+        #self.first = True
+        #self.color = color
         
-    def stem(self, x):
-        x = x + self.x_offset
-        y_to = self.y_beam            
-        if (self.first):
-            self.first = False
-            self.first_stem_x = x
-            y_to = y_to - self.height
-        self.last_stem_x = x
-        self.b.append(self.stem_template.format(x, self.y, y_to, self.color))
+    #def stem(self, x):
+        #x = x + self.x_offset
+        #y_to = self.y_beam            
+        #if (self.first):
+            #self.first = False
+            #self.first_stem_x = x
+            #y_to = y_to - self.height
+        #self.last_stem_x = x
+        #self.b.append(self.stem_template.format(x, self.y, y_to, self.color))
 
-    def beam(self):
-        self.b.append(self.beam_template.format(self.first_stem_x, self.last_stem_x, self.y_beam, self.color))
+    #def beam(self):
+        #self.b.append(self.beam_template.format(self.first_stem_x, self.last_stem_x, self.y_beam, self.color))
       
-class TreeRender():
-    def text_template(self, x, y, data):
-        return ('<text x="{0}" y="{1}">{2}</text>').format(x, y, data)
+#class TreeRender():
+    #def text_template(self, x, y, data):
+        #return ('<text x="{0}" y="{1}">{2}</text>').format(x, y, data)
 
-    def svg_template(self, width, height):
-        return ('<svg width="{0}" height="{1}">').format(width, height)
+    #def svg_template(self, width, height):
+        #return ('<svg width="{0}" height="{1}">').format(width, height)
         
-    #def __init__(self, tree_iter, width, x_space, y_space, data_callback):
-    def rend(self, tree_iter, width, x_space, y_space, data_callback):
-        # The dummy div is filled later when the height can be calculated 
-        b = ['dummy_div']
-        y_head = y_space
-        depth = 0
-        x = 0
-        y = 0
-        prev_idx_pos = [0 for x in range(20)]
-        term_data = this._term_cache
-        for layer in tree_iter:
-            y = y_head + ((depth) * y_space)
-            x = 0
-            idx = 0
-            for group in layer:
-                data = group.data
-                parent_idx = group.parent_idx
-                x = prev_idx_pos[parent_idx]
-                x_start = x
-                rb = RendBeam(b, y - 16, 12, 12, 'rgb(0,220,126)')
-                for pk in data:
-                    prev_idx_pos[idx] = x
-                    rb.stem(x)
-                    b.append(self.text_template(x, y, data_callback(pk)))
-                    x = x + x_space
-                    idx = idx + 1
-                rb.beam()    
-            depth = depth + 1
-        b.append('</svg>')
-        #  <a <strong>xlink:href="http://example.com/link/"</strong>>
-        #xmlns="http://www.w3.org/2000/svg" '''xmlns:xlink="http://www.w3.org/1999/xlink"''' version="1.1"
-        b[0] = self.svg_template(width, depth * y_space)
-        return ''.join(b)
+    ##def __init__(self, tree_iter, width, x_space, y_space, data_callback):
+    #def rend(self, tree_iter, width, x_space, y_space, data_callback):
+        ## The dummy div is filled later when the height can be calculated 
+        #b = ['dummy_div']
+        #y_head = y_space
+        #depth = 0
+        #x = 0
+        #y = 0
+        #prev_idx_pos = [0 for x in range(20)]
+        #term_data = this._term_cache
+        #for layer in tree_iter:
+            #y = y_head + ((depth) * y_space)
+            #x = 0
+            #idx = 0
+            #for group in layer:
+                #data = group.data
+                #parent_idx = group.parent_idx
+                #x = prev_idx_pos[parent_idx]
+                #x_start = x
+                #rb = RendBeam(b, y - 16, 12, 12, 'rgb(0,220,126)')
+                #for pk in data:
+                    #prev_idx_pos[idx] = x
+                    #rb.stem(x)
+                    #b.append(self.text_template(x, y, data_callback(pk)))
+                    #x = x + x_space
+                    #idx = idx + 1
+                #rb.beam()    
+            #depth = depth + 1
+        #b.append('</svg>')
+        ##  <a <strong>xlink:href="http://example.com/link/"</strong>>
+        ##xmlns="http://www.w3.org/2000/svg" '''xmlns:xlink="http://www.w3.org/1999/xlink"''' version="1.1"
+        #b[0] = self.svg_template(width, (depth + 0.5) * y_space)
+        #return ''.join(b)
     
-      
-class AnchorTreeRender(TreeRender):
-    def text_template(self, x, y, cb_data):
-        return ('<a xlink:href="{2}"><text x="{0}" y="{1}">{3}</text></a>').format(x, y, cb_data[0], cb_data[1])
-
-    def svg_template(self, width, height):
-        return ('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="{0}" height="{1}">').format(width, height)
-                 
-def rend_tree(tree_iter, width, x_space, y_space, data_callback):
-    # The dummy div is filled later when the height can be calculated 
-    b = ['dummy_div']
-    x_half = math.floor(x_space / 2)
-    y_head = y_space
-    depth = 0
-    x = 0
-    y = 0
-    prev_idx_pos = [0 for x in range(20)]
-    term_data = this._term_cache
-    for layer in tree_iter:
-        y = y_head + ((depth) * y_space)
-        x = 0
-        idx = 0
-        for group in layer:
-            data = group.data
-            parent_idx = group.parent_idx
-            x = prev_idx_pos[parent_idx]
-            x_start = x
-            rb = RendBeam(b, y - 16, 12, 12, 'rgb(0,220,126)')
-            for pk in data:
-                prev_idx_pos[idx] = x
-                rb.stem(x)
-                b.append('<text x="{0}" y="{1}">{2}</text>'.format(x, y, data_callback(pk)))
-                x = x + x_space
-                idx = idx + 1
-            rb.beam()    
-        depth = depth + 1
-    b.append('</svg>')
-    #  <a <strong>xlink:href="http://example.com/link/"</strong>>
-    #xmlns="http://www.w3.org/2000/svg" '''xmlns:xlink="http://www.w3.org/1999/xlink"''' version="1.1"
-    b[0] = '<svg width="{0}" height="{1}">'.format(width, depth * y_space)
-    return ''.join(b)
+          
+#def rend_tree(tree_iter, width, x_space, y_space, data_callback):
+    ## The dummy div is filled later when the height can be calculated 
+    #b = ['dummy_div']
+    #x_half = math.floor(x_space / 2)
+    #y_head = y_space
+    #depth = 0
+    #x = 0
+    #y = 0
+    #prev_idx_pos = [0 for x in range(20)]
+    #term_data = this._term_cache
+    #for layer in tree_iter:
+        #y = y_head + ((depth) * y_space)
+        #x = 0
+        #idx = 0
+        #for group in layer:
+            #data = group.data
+            #parent_idx = group.parent_idx
+            #x = prev_idx_pos[parent_idx]
+            #x_start = x
+            #rb = RendBeam(b, y - 16, 12, 12, 'rgb(0,220,126)')
+            #for pk in data:
+                #prev_idx_pos[idx] = x
+                #rb.stem(x)
+                #b.append('<text x="{0}" y="{1}">{2}</text>'.format(x, y, data_callback(pk)))
+                #x = x + x_space
+                #idx = idx + 1
+            #rb.beam()    
+        #depth = depth + 1
+    #b.append('</svg>')
+    ##  <a <strong>xlink:href="http://example.com/link/"</strong>>
+    ##xmlns="http://www.w3.org/2000/svg" '''xmlns:xlink="http://www.w3.org/1999/xlink"''' version="1.1"
+    #b[0] = '<svg width="{0}" height="{1}">'.format(width, depth * y_space)
+    #return ''.join(b)
 
 
 #def rend_flat_tree(tree, x_space, y_space, data_callback):
@@ -499,27 +555,27 @@ def rend_tree(tree_iter, width, x_space, y_space, data_callback):
     #b[0] = '<svg width="{0}" height="{1}">'.format(600, max_depth * y_space)
     #return ''.join(b)
 
-def rend_flat_tree_right(tree, x_space, y_space, data_callback):
-    # The dummy div is filled later when the height can be calculated 
-    b = ['dummy_div']
-    tree_len = len(tree)
-    x_at_depth = [0 for i in range(len(tree))]
-    last_depth = 0
-    max_depth = 0
-    for e in reversed(tree):
-        depth = e.depth
-        max_depth = max(max_depth, depth)
-        y = (depth - 1) * y_space
-        if (depth <= last_depth):
-            x_at_depth[depth] = x_at_depth[depth] - x_space
-        else:
-            x_at_depth[depth] = x_at_depth[last_depth]
-        x = x_at_depth[depth]
-        b.append('<span style="position:absolute; left:{0}px;top:{1}px">{2}</span>'.format(x, y, e.title))
-        last_depth = depth
-    b.append('</div>')
-    b[0] = '<div class="tree" style="position:relative; height:{0}px">'.format(max_depth * y_space)
-    return ''.join(b)
+#def rend_flat_tree_right(tree, x_space, y_space, data_callback):
+    ## The dummy div is filled later when the height can be calculated 
+    #b = ['dummy_div']
+    #tree_len = len(tree)
+    #x_at_depth = [0 for i in range(len(tree))]
+    #last_depth = 0
+    #max_depth = 0
+    #for e in reversed(tree):
+        #depth = e.depth
+        #max_depth = max(max_depth, depth)
+        #y = (depth - 1) * y_space
+        #if (depth <= last_depth):
+            #x_at_depth[depth] = x_at_depth[depth] - x_space
+        #else:
+            #x_at_depth[depth] = x_at_depth[last_depth]
+        #x = x_at_depth[depth]
+        #b.append('<span style="position:absolute; left:{0}px;top:{1}px">{2}</span>'.format(x, y, e.title))
+        #last_depth = depth
+    #b.append('</div>')
+    #b[0] = '<div class="tree" style="position:relative; height:{0}px">'.format(max_depth * y_space)
+    #return ''.join(b)
                   
 def base_clear(base_pk):
     '''
@@ -591,10 +647,8 @@ def clear():
     *hint* drastic measures ...or general purpose.
     '''
     this._base_cache.clear_all()
-    #this._term_cache = {}
     this._child_cache = {}
     this._parent_cache = {}
-    #this._count = {}
     this._term_cache.clear_all()
     this._count.clear_all()
 

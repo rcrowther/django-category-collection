@@ -243,7 +243,10 @@ class BaseAPI():
         
     def flat_tree(self, parent_pk=ROOT, max_depth=FULL_DEPTH):
         return cache.terms_flat_tree(self.pk, parent_pk, max_depth)
-
+        
+    def stacked_tree(self, parent_pk=TermParent.NO_PARENT, max_depth=FULL_DEPTH):
+        return cache.stacked_tree_iter(self.pk, parent_pk, max_depth)
+        
     def element_terms(self, element_pk): 
         return Element.system.terms(self.pk, int(element_pk))
 

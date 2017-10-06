@@ -299,13 +299,14 @@ Current state
 
 I'm not a Python programmer, and am new to Django. On the other hand, this app is not 'ALPHA'; if used as recommended it can never destroy your data, by design. The API was, in part, introduced to give some confidence in stability.
 
+
 Displaying taxonomy information
 --------------------------------
-A taxonomy container can organise data internally. It can also display information to a user. Now, this is a chance for all you front-end developers to show your skills. I'll show basics.
+A taxonomy container can organise data internally. It can also display information to a user. This is a chance for all you front-end developers to show your skills. I'll show basics.
 
 Remember, a taxonomy container can perform many tasks. It may model a family tree. It may organise collections of photographs. Or it may run a menu system.
 
-Let's say the taxonomy runs a menu system (this gives me a chance to show some methods visually). Personally, if the menu system was very simple, I'd not use a taxonomy---I'd put the navigation bar in a template. But if people need to change the menus, or the menu system becomes deep, or needs maintaining by others, you may consider a taxonomy.
+Let's say the taxonomy runs a menu system (this is a chance to show some methods visually). Personally, if the menu system was simple, I'd not use a taxonomy---I'd put the navigation bar in a template. But if people need to change the menus, or the menu system becomes deep, or needs to be maintained by others, you may consider a taxonomy.
 
 So you build a taxonomy, and the structure you have reflects the data you have. It may look like this,
 
@@ -340,7 +341,7 @@ And you have a view for the front page. Add code like this::
         nav['links'] = mark_safe(''.join(b))
         return render(request, 'test.html', {'nav': nav, 'article': article})
 
-Now we adjust the template. We have only rendered the children, and we'd like a 'home' link, so we start the render with a fixed 'home' link. That one will not change. After thaat, the links made from children,::
+Now we adjust the template. We have only rendered the children, and we'd like a 'home' link, so we start the render with a fixed 'home' link. That one will not change. After that, the links made from children,::
 
         <ul>
           <li><a class="home" href="/">Home</a></li>{{ nav.links }}
@@ -356,7 +357,7 @@ And if we render with some CSS, this might appear,
     It's a nav bar.
    
    
-As I said above, I wouldn't bother for a small site. Still, the taxonomy control has advantages. If this little magazine-style site takes off, they may find their data changing. For example; the owners are not as keen for people to contact them now, as they have a lot going on. And a new person arrived who wanted to cover sport. So we go to the taxonomy admin (not the template), add some weight to the 'contact' term, then add a new term/category for 'sport' articles. Next render, we get this,
+As I said above, for a small site, I wouldn't bother. Still, taxonomy control has advantages. If this little magazine-style site takes off, they may find their data changing. For example; the owners are not keen for people to contact them, as they have a lot going on. And a new person arrived who wanted to cover sport. So we go to the taxonomy admin (not the template), add some weight to the 'contact' term, then add a new term/category for 'sport'. Next render, we get this,
 
 .. figure:: https://raw.githubusercontent.com/rcrowther/django-category-collection/master/text/images/taxonomy_children_adjusted.png
     :width: 160 px
@@ -401,7 +402,51 @@ it returns a list of ordered term data from cache, with a depth attribute attach
     
 I see possibilities...
 
- 
+
+
+Displaying a tree
+~~~~~~~~~~~~~~~~~
+The code which builds the 'select widget' data is in the API,::
+
+    api.BaseAPI.flat_tree(self, parent_pk=ROOT, max_depth=FULL_DEPTH)
+
+It's rare to see on websites but many displays are possible. The 'inlinetemplates' module provides a class TreeRender. This is only suitable for very small taxonomies but nice to look at and efficient. Assume a Base 'grasses' has been built, and a view/template 'article' exists in which we can put the results. Put this in the view,::
+
+    from taxonomy import api
+    from taxonomy.inlinetemplates import TreeRender
+
+    def get_title(pk):
+        return api.Taxonomy.term(pk).title
+    ...
+    # 1. Get the tree
+    bapi = api.Taxonomy.slug('angiosperms-flowering-plants')
+    t = bapi.flat_tree()
+    
+    # get the renderer, then adjust a few of the display parameters 
+    tr = TreeRender()
+    tr.beam_style = 'stroke:rgb(0,220,126);stroke-width:4;'
+    tr.stem_style = 'stroke:rgb(0,220,126);stroke-width:2;'
+
+    #3. Rend (needs a callback for data delivery into the template)
+    tree = tr.rend_default_horizontal(t, 200, 14, get_title)
+    
+    #4. Deliver into the template
+    article.body = mark_safe(tree)
+    return render(request, 'article.html', {'article': article})
+
+The only verbose part is the callback which supplies the data.
+
+This code renders as,
+
+.. figure:: https://raw.githubusercontent.com/rcrowther/django-category-collection/master/text/images/base_render.png
+    :width: 160 px
+    :alt: 2D render of a base
+    :align: center
+     
+The result is an active DOM-based webpage. An override of TreeRender, AnchorTreeRender, will deliver clickable links. You may like to know also that this example is lightweight on the coder, server (microseconds), and the user---stock HTML, no Javascript, no CSS. But others can follow this path and go crazy.
+
+
+
 Extra
 -----
 
@@ -427,7 +472,7 @@ A comparison of 'Django category collection' and 'django-categories'
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 In comparison, the theory behind this project will be inelegant at discovering data elements from multiple terms. The action is possible, but not of great interest and has not been implemented (yet). Also, this project caches all data from terms/categories, and so may not scale well to many terms. Before you implement the Dewey_ reference system, please run tests.
 
-However, this implementation of a category collection has advantages (as all differing implementations will). The app is nearly self-contained. It's storage models are plain and few, making backup and salvage simple---salvage can be managed through Django admin. The view code is twisty in places, but can derive really useful data from the category trees. Without AJAX or whatever, the core methods are sophisticated. And finally, the container in this app has a Pythonlike interface.
+However, this implementation of a category collection has advantages (as all differing implementations will). The app is nearly self-contained. It's storage models are plain and few, making backup and salvage simple---salvage can be managed through Django admin. The view code is twisty in places, but can derive really useful data from the category trees. Without AJAX or whatever, the core methods are sophisticated. And finally, the container in this app has a Django/Pythonlike interface.
 
 .. _Dewey: https://en.wikipedia.org/wiki/Dewey_Decimal_Classification
 
