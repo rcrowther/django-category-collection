@@ -77,10 +77,9 @@ gives no-permission-required admin. Or use any 'contrib.admin' site you prefer.
 
 Current state
 -------------
-'Draft'
+'Draft'. I'm not a Python programmer, and am new to Django. On the other hand, this app is not 'ALPHA'; if used as recommended it can never destroy your data, by design. The API was, in part, introduced to give some confidence in stability.
 
-I'm not a Python programmer, and am new to Django. On the other hand, this app is not 'ALPHA'; if used as recommended it can never destroy your data, by design. The API was, in part, introduced to give some confidence in stability. And that's on Version 2.
-
+Now wandering up Version 1. This is because the API has changed, not any notion of target aims (semantic versioning).
 
 Fast start/want only to look/know what you want?
 ------------------------------------------------

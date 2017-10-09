@@ -12,7 +12,8 @@
 {% endblock %}
 
 {% block content %}
-  <form  id="taxonomygeneric-form" action={{ submit.url }} method="post">
+
+  <form id="generic-form" action="{{ submit.url }}" method="post">
     {% csrf_token %}
 
     <ul class="admin-list">
@@ -20,12 +21,18 @@
     </ul>
     
     <ul class="actions">
-    {% for action in actions %}
+      {% for action in actions %}
       <li> 
         {{ action }}
       </li>
-    {% endfor %}
-    <li><input type="submit" value={{ submit.message }} class="button primary" /></li>
+      {% endfor %}
+      <li>
+      {% if submit.message %}
+      <input type="submit" value={{ submit.message }} class="button primary" />
+      {% else %}
+      <p class="admin-warning">No submit data in context?</p>
+      {% endif %}
+      </li>
     </ul>
   </form>
 {% endblock %}
