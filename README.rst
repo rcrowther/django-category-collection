@@ -23,7 +23,7 @@ Data layout in the taxonomy
 ---------------------------
 There are several ways to define a taxonomy structure. This app establishes 'bases'. Each base can contain several trees of 'terms'.
 
-You can only attach data elements to terms, not the 'base'. If you would like a taxonomy where elements can be attached to the base, start a base then add a single term which will be the 'root term'. Build from there e.g.::
+You can only attach data elements to terms, not the 'base'. If you would like a taxonomy where elements can be attached to the base, start a base then add a single term which will be the 'root term'. Build from there e.g. ::
 
     base = 'car categories'
     - Cars
@@ -42,32 +42,32 @@ Install
 -------
 Put the code inside your project/emvironment. Then,
 
-'settings.py',::
+'settings.py', ::
 
     INSTALLED_APPS = [
         'taxonomy.apps.TaxonomyConfig',
         ...
     ]
 
-Site-wide 'urls.py',::
+Site-wide 'urls.py', ::
 
     urlpatterns = [
         url(r'^taxonomy/', include('taxonomy.urls')),
         ...
     ]
 
-The wise app is humble,::
+The wise app is humble, ::
 
     python manage.py taxonomy_uninstall -h
 
 If you wish to avoid accidents, delete the folder 'management'.
 
 
-One curiosity. If you look in taxonomy.urls,::
+One curiosity. If you look in taxonomy.urls, ::
 
   urlpatterns = site.get_urls()
 
-This wierd method takes an argument,::
+This wierd method takes an argument, ::
 
   urlpatterns = site.get_urls(site=None)
 
@@ -87,7 +87,7 @@ Install (see up).
 
 Start at http://127.0.0.1:8000/taxonomy and build a base with some terms.
  
-Look in taxonomy.api for methods. Probably,::
+Look in taxonomy.api for methods. Probably, ::
 
     api.Taxonomy.term(term_pk)
 
@@ -104,7 +104,7 @@ The base look of the admin views and forms is similar to Django admin. However, 
 
 General Structure
 ------------------
-Define a base. Put terms into the base and parent them with other terms, or at the bottom in \<root\>,::
+Define a base. Put terms into the base and parent them with other terms, or at the bottom in \<root\>,:
 
     base = Fabrics
     - Corduroy 
@@ -130,11 +130,11 @@ Many possibilities here. But, first, you may not use a taxonomy to classify user
 
 Using code
 ~~~~~~~~~~
-To attach an element,::
+To attach an element, ::
 
   Element.system.merge(term_pks, element_pk)  
 
-To delete,::
+To delete, ::
 
   Element.system.delete(base_pk, element_pks):
 
@@ -173,7 +173,7 @@ As we will see further on, other more scaleable widgets are available.
 
 An admin form, fully broken out
 +++++++++++++++++++++++++++++++
-Your form is broken out because it is heavily customised for structure, maybe has extra fields. Add these::
+Your form is broken out because it is heavily customised for structure, maybe has extra fields. Add these ::
     
     # 1. import the methods and custom form field
     from taxonomy import element
@@ -197,7 +197,7 @@ Your form is broken out because it is heavily customised for structure, maybe ha
     
 Note that the two form additions need the 'base' value to be set. This may seem limiting but is typical Django procedure. This parameter must be set also in the next step.
     
-Now we need to save and load the results. In ModelAdmin,::    
+Now we need to save and load the results. In ModelAdmin, :: 
     
     class ArticleAdmin(admin.ModelAdmin):
         form = ArticleForm
@@ -219,7 +219,7 @@ Right, that's it. Instances of the Model (in this example, 'Article') can now be
 
 ModelAdmin  only
 ++++++++++++++++
-You have an ModelAdmin, but no form, because you did some customization but nothing that altered the structure of the form. Do this,::
+You have an ModelAdmin, but no form, because you did some customization but nothing that altered the structure of the form. Do this, ::
 
     # 1. import this method (despite the capital letters, it's a method. But a class factory, which acts like, and returns, a class)
     from taxonomy.modeladmin import WithTaxonomyAdmin
@@ -240,12 +240,12 @@ This far, we have put a the options onto the element form itself. This seems int
 
 The app contains a suggestion about how you could start. It may be good for some situations. The solution is as minimal as I could concieve. It currently uses two AJAXing HTML inputs (described down a bit).
 
-Go into the app for the model you want to attach to a taxonomy, then to urls.py, and add,::
+Go into the app for the model you want to attach to a taxonomy, then to urls.py, and add, ::
     
     from taxonomy import element
     from .models import Birds
   
-Birds is the name of the model; 'urls.py' often contains this import. Then add this to the urlpatterns,::
+Birds is the name of the model; 'urls.py' often contains this import. Then add this to the urlpatterns, ::
 
     urlpatterns = [
         ...
@@ -253,7 +253,7 @@ Birds is the name of the model; 'urls.py' often contains this import. Then add t
   
 'Birds' is the name of the model, again. 'base_pk' identifies a taxonomy base. Ignore 'navigation_links', it's a rendering detail.
 
-That's it. The only new URL you care about is at,::
+That's it. The only new URL you care about is at, ::
 
     birds/taxonomy/add-delete
 
@@ -262,7 +262,7 @@ where two auto-complete input boxes allow a user to connect and disconnect 'Bird
 
 Fields and Widgets
 ~~~~~~~~~~~~~~~~~~
-The code includes a special Field (and Widget),::
+The code includes a special Field (and Widget), ::
 
     IDTitleAutocompleteField
     IDTitleAutocompleteInput
@@ -271,7 +271,7 @@ The field is fundamentally a numeric field, but displays text too. The widget pu
 
 The Field is powered by a JQuery auto-completion widget. This needs an link and URL to gain data from. Data should be in JSON, a list of tuples (id, title). As a starter example, a suitable URL/JSON view is in the set provided for Taxonomy, which can deliver taxonomy terms to this Field/Widget. 
 
-The field needs an AJAX URL, and there are a crazy number of ways of defining the URL within a form (the system is similar to the definition of the 'choice' attribute in selector fields). The ways I like are, if there is nothing dynamic about the URL, to declare on the field,::
+The field needs an AJAX URL, and there are a crazy number of ways of defining the URL within a form (the system is similar to the definition of the 'choice' attribute in selector fields). The ways I like are, if there is nothing dynamic about the URL, to declare on the field, ::
 
     id_title = IDTitleAutocompleteField(
       ajax_href='/taxonomy/term_titles/29',
@@ -279,21 +279,21 @@ The field needs an AJAX URL, and there are a crazy number of ways of defining th
       help_text="Title of an element to be categorised."
       )
 
-If the Field is dynamic, well, Django is not good at this. However, the 'init' trick works, and so does poking in the value (like 'choices', declarations at field level or after form building will override widget definitions) so,::
+If the Field is dynamic, well, Django is not good at this. However, the 'init' trick works, and so does poking in the value (like 'choices', declarations at field level or after form building will override widget definitions) so, ::
 
         form = MyElementForm()
         form.fields['id_title'].widget.ajax_href = '/taxonomy/term_titles/1'
 
 The Field/Widget has no default 'ajax_url'. If the property is unstated at the time of form building then the Field/Widget will throw an exception.
 
-Second note: the Widget uses several bits of CSS and JS. So you will need to put a call to media into the template context,::
+Second note; the Widget uses several bits of CSS and JS. So you will need to put a call to media into the template context, ::
 
     context = [
         media: form.media,
         ...
     ]
 
-and place,::
+and place, ::
 
     {{ media }}
 
@@ -321,7 +321,7 @@ This taxonomy base has the id 7 (the url on the edit bar showed this).
 
 Displaying children/parents (a navigation bar)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-And you have a view for the front page. Add code like this::
+And you have a view for the front page. Add code like this, ::
 
     def front_page(request): 
         article = # get this data by your own method
@@ -344,7 +344,7 @@ And you have a view for the front page. Add code like this::
         nav['links'] = mark_safe(''.join(b))
         return render(request, 'test.html', {'nav': nav, 'article': article})
 
-Now we adjust the template. We have only rendered the children, and we'd like a 'home' link, so we start the render with a fixed 'home' link. That one will not change. After that, the links made from children,::
+Now we adjust the template. We have only rendered the children, and we'd like a 'home' link, so we start the render with a fixed 'home' link. That one will not change. After that, the links made from children, ::
 
         <ul>
           <li><a class="home" href="/">Home</a></li>{{ nav.links }}
@@ -374,7 +374,7 @@ You can use 'term_parents(base_pk, term_pk)' to return the parents of a term. Th
 
 Displaying paths (breadcrumb trails)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-There are many methods in the API. TermAPI.term_ancestor_paths() gets the paths back from a term to the root. The code is nearly the same as the last code, but note the use of an index for '0',::
+There are many methods in the API. TermAPI.term_ancestor_paths() gets the paths back from a term to the root. The code is nearly the same as the last code, but note the use of an index for '0', ::
 
     path = api.term_ancestor_paths(7, 141)[0]
     
@@ -398,11 +398,11 @@ The result, with the fixed home link and some new CSS, might look like this,
 
 Yes, it is what web-designers call a 'breadcrumb trail'. There are also intruiging possibilities in a complementary method, term_descendant_paths(). This can show a user where they can go next. But be careful; the method will often return multiple paths, even in a single-parent taxonomy.
 
-And, by the way, that tree which the administration uses is available too,::
+And, by the way, that tree which the administration uses is available too, ::
 
     def terms_flat_tree(base_pk, parent_pk=ROOT, max_depth=FULL_DEPTH):
 
-it returns a list of ordered term data from cache, with a depth attribute attached. The list elements are a named tuple, this,::
+it returns a list of ordered term data from cache, with a depth attribute attached. The list elements are a named tuple, this, ::
 
     TermFTData = namedtuple('TermFTData', ['pk', 'title', 'slug', 'description', 'depth'])
     
@@ -412,11 +412,11 @@ I see possibilities...
 
 Displaying a tree
 ~~~~~~~~~~~~~~~~~
-The code which builds the 'select widget' data is in the API,::
+The code which builds the 'select widget' data is in the API, ::
 
     api.BaseAPI.flat_tree(self, parent_pk=ROOT, max_depth=FULL_DEPTH)
 
-It's rare to see on websites but many displays are possible. The 'inlinetemplates' module provides a class TreeRender. This is only suitable for very small taxonomies but nice to look at and efficient. Assume a Base 'grasses' has been built, and a view/template 'article' exists in which we can put the results. Put this in the view,::
+It's rare to see on websites but many displays are possible. The 'inlinetemplates' module provides a class TreeRender. This is only suitable for very small taxonomies but nice to look at and efficient. Assume a Base 'grasses' has been built, and a view/template 'article' exists in which we can put the results. Put this in the view, ::
 
     from django.utils.safestring import mark_safe
     from django.utils import html
@@ -459,7 +459,7 @@ Extra
 -----
 The API
 ~~~~~~~
-The API is class-based (or, in places, object-based),:
+The API is class-based (or, in places, object-based), ::
     
     TermAPI(term_pk)
     BaseAPI(base_pk)
