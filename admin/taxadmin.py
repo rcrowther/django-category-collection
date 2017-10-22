@@ -217,6 +217,7 @@ def term_add(request, base_pk):
     'form': f,
     'title': 'Add Term',
     'navigators': [
+      link('Base List', admin_reverse('base', 'changelist')),
       link('Term List', admin_reverse('term', 'changelist', args=[bm.pk])),
       ],
     'submit': {'message':"Save", 'url': admin_reverse('term', 'add', args=[bm.pk])},
