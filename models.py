@@ -2,7 +2,6 @@ from django.db import models
 from django.core.urlresolvers import reverse
 from django.db import connection
 
-# Create your models here.
 
 
 class BaseManager(models.Manager):

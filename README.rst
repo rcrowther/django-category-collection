@@ -63,15 +63,7 @@ The wise app is humble, ::
 If you wish to avoid accidents, delete the folder 'management'.
 
 
-One curiosity. If you look in taxonomy.urls, ::
-
-  urlpatterns = site.get_urls()
-
-This wierd method takes an argument, ::
-
-  urlpatterns = site.get_urls(site=None)
-
-gives no-permission-required admin. Or use any 'contrib.admin' site you prefer.
+The categories app has an admin interface, but it is compromised . See below.
 
 
 
@@ -79,13 +71,14 @@ Current state
 -------------
 'Draft'. I'm not a Python programmer, and am new to Django. On the other hand, this app is not 'ALPHA'; if used as recommended it can never destroy your data, by design. The API was, in part, introduced to give some confidence in stability.
 
-Now wandering up Version 1. This is because the API has changed, not any notion of target aims (semantic versioning).
+Now wandering up Version 2. This is because the API has changed, not any notion of target aims (semantic versioning).
+
 
 Fast start/want only to look/know what you want?
 ------------------------------------------------
 Install (see up).
 
-Start at http://127.0.0.1:8000/taxonomy and build a base with some terms.
+Start at http://127.0.0.1:8000/admin/taxonomy and build a base with some terms.
  
 Look in taxonomy.api for methods. Probably, ::
 
@@ -97,9 +90,9 @@ Put this in a view, then render the results.
  
 Admin
 -----
-The core models can be maintained through Django admin, but the module uses a non-'admin' based set of forms and views for administration.
+The core models can be maintained through Django admin. You wil find a 'Bases' entry, and a non-functional 'Terms' entry. Start with 'Bases'.
 
-The base look of the admin views and forms is similar to Django admin. However, the forms link in a different way, from overview lists to action, treating the app as a coherent whole. Start at http://127.0.0.1:8000/taxonomy and work from there.
+The app uses a non-'admin' based set of forms and views for administration. The styling is similar to Django admin. However, the forms link in a different way, from overview lists to action, treating the app as a coherent whole. Start at http://127.0.0.1:8000/admin/taxonomy and work from there.
 
 
 General Structure
@@ -167,7 +160,7 @@ Django has multiple possibilities for forms and code. Here are the main solution
 
 The below methods, except for the note about code, add a 'select' box to an admin form. You are not limited to admin, the same methods can add Taxonomy selection fields to other forms. 
 
-As we will see further on, other more scaleable widgets are available.
+As we will see further on, other more-scaleable widgets are available.
 
 
 
@@ -217,7 +210,7 @@ Now we need to save and load the results. In ModelAdmin, ::
 Right, that's it. Instances of the Model (in this example, 'Article') can now be attached and detached from taxonomy terms. If either the term or the element is deleted, the connection will be automatically removed. The system is the same for any form using ModelAfmin or ModelForm.
 
 
-ModelAdmin  only
+ModelAdmin only
 ++++++++++++++++
 You have an ModelAdmin, but no form, because you did some customization but nothing that altered the structure of the form. Do this, ::
 
@@ -240,7 +233,7 @@ This far, we have put a the options onto the element form itself. This seems int
 
 The app contains a suggestion about how you could start. It may be good for some situations. The solution is as minimal as I could concieve. It currently uses two AJAXing HTML inputs (described down a bit).
 
-Go into the app for the model you want to attach to a taxonomy, then to urls.py, and add, ::
+Go into the app for the model you want to attach to a taxonomy, then to urls.py, then add, ::
     
     from taxonomy import element
     from .models import Birds
@@ -251,7 +244,7 @@ Birds is the name of the model; 'urls.py' often contains this import. Then add t
         ...
     ] + element.get_urls(model=Birds, base_pk=12, navigation_links=[])
   
-'Birds' is the name of the model, again. 'base_pk' identifies a taxonomy base. Ignore 'navigation_links', it's a rendering detail.
+'Birds' is the name of the model, as imported. 'base_pk' identifies a taxonomy base. Ignore 'navigation_links', it's a rendering detail.
 
 That's it. The only new URL you care about is at, ::
 
@@ -396,7 +389,7 @@ The result, with the fixed home link and some new CSS, might look like this,
 
     You know it as a 'breadcrumb'
 
-Yes, it is what web-designers call a 'breadcrumb trail'. There are also intruiging possibilities in a complementary method, term_descendant_paths(). This can show a user where they can go next. But be careful; the method will often return multiple paths, even in a single-parent taxonomy.
+Yes, it is what web-designers call a 'breadcrumb trail'. There are also intruiging possibilities in a complementary method, term_descendant_paths(). This can show a user where they can go next. But be careful; the method will return multiple paths, even in a single-parent taxonomy.
 
 And, by the way, that tree which the administration uses is available too, ::
 

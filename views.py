@@ -21,12 +21,15 @@ from .models import Term #, Base, TermParent, BaseTerm, Element
 # paginate lists
 # test permissions admin, still not happy
 # maybe not parent to root when is root?
+# break the admin down
+
 
 ## widgets
 # make weight to zero button
 
 ## template
 # clearup the overcooked js
+# tidy messy, wet templates
 # generictemplate module detection
 
 ## forms
@@ -46,6 +49,7 @@ from .models import Term #, Base, TermParent, BaseTerm, Element
 
 ## usage
 # convert code to new API
+
 
 import json
 from django.http import JsonResponse

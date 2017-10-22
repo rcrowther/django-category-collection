@@ -1,7 +1,5 @@
 from django.db import  router, transaction #models,
 from django.views.generic import TemplateView
-
-from .models import Term, Base #, TermParent, BaseTerm, Element
 from django import forms
 from django.contrib import messages
 from django.utils.safestring import mark_safe
@@ -9,11 +7,14 @@ from django.utils import html
 from django.urls import reverse
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import render
-from . import api
 from django.forms import TypedChoiceField, TypedMultipleChoiceField
-from .inlinetemplates import link, submit, tmpl_instance_message
+from .. import api
+from ..inlinetemplates import link, submit, tmpl_instance_message
+from ..models import Term, Base #, TermParent, BaseTerm, Element
 
-
+def admin_reverse(model_name, url_pattern_name, args=None):
+    return reverse('admin:taxonomy_{0}_{1}'.format(model_name, url_pattern_name), args=args)
+  
 #! build rows in code. These templates are pointless.
 class TermListView(TemplateView):
     template_name = "taxonomy/term_list.html"
@@ -28,15 +29,15 @@ class TermListView(TemplateView):
           
         context = super(TermListView, self).get_context_data(**kwargs)
         context['title'] = tmpl_instance_message("Terms in", bm.title)
-        context['tools'] = [link('Add', reverse('term-add', args=[bm.pk]))]
+        context['tools'] = [link('Add', admin_reverse('term', 'add', args=[bm.pk]))]
         context['headers'] = [mark_safe('TITLE'), mark_safe('ACTION')]
         context['messages'] = messages.get_messages(self.request)
-        context['navigators'] = [link('Base List', reverse('base-list'))]
+        context['navigators'] = [link('Base List', admin_reverse('base', 'changelist'))]
   
         ## form of rows
         # - name with view link
         # - tid parent depth (all hidden)
-        # - 'edit' link
+        # - 'change' link
         rows = []
         
         # Term row displays come in two forms...
@@ -48,7 +49,7 @@ class TermListView(TemplateView):
             pk = o[0]
             rows.append({
               'view': o[1],
-              'edit': link('edit', reverse('term-edit', args=[pk]))
+              'edit': link('change', admin_reverse('term', 'change', args=[pk]))
             })    
         else:
           # single parentage can show the structure of the tree
@@ -66,7 +67,7 @@ class TermListView(TemplateView):
               'view': title,
               'termpk': pk,
               'depth': td.depth,
-              'edit': link('edit', reverse('term-edit', args=[pk]))
+              'edit': link('edit', admin_reverse('term', 'change', args=[pk]))
             })
         context['rows'] = rows
         return context
@@ -175,7 +176,7 @@ def term_add(request, base_pk):
     except Exception:
         msg = "Base with ID '{0}' doesn't exist.".format(base_pk)
         messages.add_message(request, messages.WARNING, msg) 
-        return HttpResponseRedirect(reverse('term-list', args=[base_pk]))
+        return HttpResponseRedirect(admin_reverse('term', 'changelist', args=[base_pk]))
 
     if request.method == 'POST':
         f = TermForm(request.POST,
@@ -196,7 +197,7 @@ def term_add(request, base_pk):
                 )
             msg = tmpl_instance_message("Created new Term", t.title)
             messages.add_message(request, messages.SUCCESS, msg)
-            return HttpResponseRedirect(reverse('term-list', args=[bm.pk]))
+            return HttpResponseRedirect(admin_reverse('term', 'changelist', args=[bm.pk]))
             
         else:
             msg = "Please correct the errors below."
@@ -216,9 +217,9 @@ def term_add(request, base_pk):
     'form': f,
     'title': 'Add Term',
     'navigators': [
-      link('Term List', reverse('term-list', args=[bm.pk])),
+      link('Term List', admin_reverse('term', 'changelist', args=[bm.pk])),
       ],
-    'submit': {'message':"Save", 'url': reverse('term-add', args=[bm.pk])},
+    'submit': {'message':"Save", 'url': admin_reverse('term', 'add', args=[bm.pk])},
     'actions': [],
     }    
 
@@ -236,7 +237,7 @@ def term_edit(request, term_pk):
         msg = "Term with ID '{0}' doesn't exist.".format(term_pk)
         messages.add_message(request, messages.WARNING, msg)        
         # must be base-list, no tree id to work with 
-        return HttpResponseRedirect(reverse('base-list'))
+        return HttpResponseRedirect(admin_reverse('base', 'changelist'))
             
     bpk = tapi.base_pk()
     bapi = api.BaseAPI(bpk)
@@ -267,7 +268,7 @@ def term_edit(request, term_pk):
                 ) 
             msg = tmpl_instance_message("Updated Term", t.title)
             messages.add_message(request, messages.SUCCESS, msg)
-            return HttpResponseRedirect(reverse('term-list', args=[bpk]))
+            return HttpResponseRedirect(admin_reverse('term', 'changelist', args=[bpk]))
             
     else:
         # requested update form
@@ -287,11 +288,11 @@ def term_edit(request, term_pk):
     'form': f,
     'title': tmpl_instance_message('Edit term', tm.title),
     'navigators': [
-      link('Base List', reverse('base-list')),
-      link('Term List', reverse('term-list', args=[bpk]))
+      link('Base List', admin_reverse('base', 'changelist')),
+      link('Term List', admin_reverse('term', 'changelist', args=[bpk]))
       ],
-    'submit': {'message':"Save", 'url': reverse('term-edit', args=[tm.pk])},
-    'actions': [link('Delete', reverse("term-delete", args=[tm.pk]), attrs={'class':'"button alert"'})],
+    'submit': {'message':"Save", 'url': admin_reverse('term', 'change', args=[tm.pk])},
+    'actions': [link('Delete', admin_reverse('term', 'delete', args=[tm.pk]), attrs={'class':'"button alert"'})],
     }
     
     return render(request, 'taxonomy/generic_form.html', context)
@@ -306,14 +307,14 @@ def _term_delete(request, term_pk):
             term_pk
         )
         messages.add_message(request, messages.WARNING, msg) 
-        return HttpResponseRedirect(reverse('base-list'))
+        return HttpResponseRedirect(admin_reverse('base', 'changelist'))
     bpk = tapi.base_pk()
       
     if (request.method == 'POST'):
         tapi.delete()
         msg = tmpl_instance_message("Deleted Term", tm.title)
         messages.add_message(request, messages.SUCCESS, msg)
-        return HttpResponseRedirect(reverse('term-list', args=[bpk]))
+        return HttpResponseRedirect(admin_reverse('term', 'changelist', args=[bpk]))
     else:
         message = '<p>Are you sure you want to delete the Term "{0}"?</p><p>Deleting a term will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a term will not delete elements attached to the term. However, attached elements will be removed from the taxonomies)</p>'.format(
           html.escape(tm.title)
@@ -321,8 +322,8 @@ def _term_delete(request, term_pk):
         context={
           'title': tmpl_instance_message("Delete term", tm.title),
           'message': mark_safe(message),
-          'submit': {'message':"Yes, I'm sure", 'url': reverse('term-delete', args=[tm.pk])},
-          'actions': [link('No, take me back', reverse("term-edit", args=[tm.pk]), attrs={'class':'"button"'})],
+          'submit': {'message':"Yes, I'm sure", 'url': admin_reverse('term', 'delete', args=[tm.pk])},
+          'actions': [link('No, take me back', admin_reverse('term', 'change', args=[tm.pk]), attrs={'class':'"button"'})],
         } 
         return render(request, 'taxonomy/delete_confirm_form.html', context)
 
@@ -342,7 +343,7 @@ class BaseListView(TemplateView):
       context = super(BaseListView, self).get_context_data(**kwargs)
 
       context['title'] = 'Base List'
-      context['tools'] = [link('Add', reverse('base-add'))]
+      context['tools'] = [link('Add', admin_reverse('base', 'add'))]
       context['headers'] = [mark_safe('TITLE'), mark_safe('ACTION'), mark_safe(''), mark_safe('')]
       #context['navigators'] = [mark_safe('<a href="/taxonomy/tree/list"/>tree list</a>')]
       context['messages'] = messages.get_messages(self.request)
@@ -353,9 +354,9 @@ class BaseListView(TemplateView):
           rows.append({
             'pk': pk,
             'title': o.title,
-            'edit': link('edit', reverse('base-edit', args=[pk])),
-            'list': link('list terms', reverse('term-list', args=[pk])),
-            'add': link('add terms', reverse('term-add', args=[pk]))
+            'edit': link('edit', admin_reverse('base', 'change', args=[pk])),
+            'list': link('list terms', admin_reverse('term', 'changelist', args=[pk])),
+            'add': link('add terms', admin_reverse('term', 'add', args=[pk]))
           })       
       context['rows'] = rows
       return context
@@ -415,7 +416,7 @@ def base_add(request):
                 ) 
             msg = tmpl_instance_message("Created new Base", t.title)
             messages.add_message(request, messages.SUCCESS, msg)
-            return HttpResponseRedirect(reverse('base-list'))
+            return HttpResponseRedirect(admin_reverse('base', 'changelist'))
         else:
             msg = "Please correct the errors below."
             messages.add_message(request, messages.ERROR, msg)
@@ -428,9 +429,9 @@ def base_add(request):
     'form': f,
     'title': 'Add Base',
     'navigators': [
-      link('Base List', reverse('base-list')),
+      link('Base List', admin_reverse('base', 'changelist')),
       ],
-    'submit': {'message':"Save", 'url': reverse('base-add')},
+    'submit': {'message':"Save", 'url': admin_reverse('base', 'add')},
     'actions': [],
     }    
 
@@ -445,7 +446,7 @@ def base_edit(request, base_pk):
     except Base.DoesNotExist:
         msg = "Base with ID '{0}' doesn't exist.".format(base_pk)
         messages.add_message(request, messages.WARNING, msg)        
-        return HttpResponseRedirect(reverse('base-list'))
+        return HttpResponseRedirect(admin_reverse('base', 'changelist'))
             
     if request.method == 'POST':
         # create a form instance and validate
@@ -465,7 +466,7 @@ def base_edit(request, base_pk):
                 f.fields['is_single'].has_changed(tm.is_single, sgl)
                 and sgl == True
                 ):
-                return HttpResponseRedirect(reverse('base-tosingleparent', args=[tm.pk]))
+                return HttpResponseRedirect(admin_reverse('base', 'tosingleparent', args=[tm.pk]))
                 
             t = bapi.update(
                 #base_pk=tm.pk, 
@@ -477,7 +478,7 @@ def base_edit(request, base_pk):
                 ) 
             msg = tmpl_instance_message("Update tree", f.cleaned_data['title'])
             messages.add_message(request, messages.SUCCESS, msg)
-            return HttpResponseRedirect(reverse('base-list'))
+            return HttpResponseRedirect(admin_reverse('base', 'changelist'))
     else:
         # requested update form
         initial = dict(
@@ -495,11 +496,11 @@ def base_edit(request, base_pk):
     'form': f,
     'title': tmpl_instance_message('Edit tree', tm.title),
     'navigators': [
-      link('Base List', reverse('base-list')),
-      link('Term List', reverse('term-list', args=[tm.pk]))
+      link('Base List', admin_reverse('base', 'changelist')),
+      link('Term List', admin_reverse('term', 'changelist', args=[tm.pk]))
       ],
-    'submit': {'message':"Save", 'url': reverse('base-edit', args=[tm.pk])},
-    'actions': [link('Delete', reverse("base-delete", args=[tm.pk]), attrs={'class':'"button alert"'})],
+    'submit': {'message':"Save", 'url': admin_reverse('base', 'change', args=[tm.pk])},
+    'actions': [link('Delete', admin_reverse('base', 'delete', args=[tm.pk]), attrs={'class':'"button alert"'})],
     }
     
     return render(request, 'taxonomy/generic_form.html', context)
@@ -513,13 +514,13 @@ def _base_delete(request, base_pk):
     except Exception as e:
       msg = "{0} with ID '{1}' doesn't exist. Perhaps it was deleted?".format('Base', tm.pk)
       messages.add_message(request, messages.WARNING, msg) 
-      return HttpResponseRedirect(reverse('base-list'))
+      return HttpResponseRedirect(admin_reverse('base', 'changelist'))
            
     if (request.method == 'POST'):
         bapi.delete()
         msg = tmpl_instance_message("Deleted tree", tm.title)
         messages.add_message(request, messages.SUCCESS, msg)
-        return HttpResponseRedirect(reverse('base-list'))
+        return HttpResponseRedirect(admin_reverse('base', 'changelist'))
     else:
         message = '<p>Are you sure you want to delete the Base "{0}"?</p><p>Deleting a tree will delete all its term children if there are any. This action cannot be undone.</p><p>(deleting a tree will not delete elements attached to the terms)</p>'.format(
             html.escape(tm.title)
@@ -527,8 +528,8 @@ def _base_delete(request, base_pk):
         context={
           'title': tmpl_instance_message("Delete tree", tm.title),
           'message': mark_safe(message),
-          'submit': {'message':"Yes, I'm sure", 'url': reverse('base-delete', args=[tm.pk])},
-          'actions': [link('No, take me back', reverse("base-edit", args=[tm.pk]), attrs={'class':'"button"'})],
+          'submit': {'message':"Yes, I'm sure", 'url': admin_reverse('base', 'delete', args=[tm.pk])},
+          'actions': [link('No, take me back', admin_reverse('base', 'change', args=[tm.pk]), attrs={'class':'"button"'})],
         } 
         return render(request, 'taxonomy/delete_confirm_form.html', context)
 
@@ -550,7 +551,7 @@ def _base_to_single_parent(request, base_pk):
           base_pk
       )
       messages.add_message(request, messages.WARNING, msg) 
-      return HttpResponseRedirect(reverse('base-list'))
+      return HttpResponseRedirect(admin_reverse('base', 'changelist'))
       
     if (request.method == 'POST'):
         #count = TermParent.system.multiple_to_single(tm.pk)
@@ -560,7 +561,7 @@ def _base_to_single_parent(request, base_pk):
         #msg = tmpl_instance_message("Base is now single parent. Deleted {0} parent(s) in".format(count), tm.title)
         msg = tmpl_instance_message("Base is now single parent ", tm.title)
         messages.add_message(request, messages.SUCCESS, msg)
-        return HttpResponseRedirect(reverse('term-list', args=[tm.pk]))
+        return HttpResponseRedirect(admin_reverse('term', 'changelist', args=[tm.pk]))
     else:
         message = '<p>Are you sure you want to convert the Base "{0}"?</p><p>Converting to single parent will remove duplicate parents.</p><p>The parents to remove can not be selected. If you wish to affect parentage, then edit term parents (delete to one parant) before converting the tree.</p><p>(this action will not affect elements attached to the terms)</p>'.format(
           html.escape(tm.title)
@@ -568,8 +569,8 @@ def _base_to_single_parent(request, base_pk):
         context={
           'title': tmpl_instance_message("Convert to single parent tree", tm.title),
           'message': mark_safe(message),
-          'submit': {'message':"Yes, I'm sure", 'url': reverse('base-tosingleparent', args=[tm.pk])},
-          'actions': [link('No, take me back', reverse("base-edit", args=[tm.pk]), attrs={'class':'"button"'})],
+          'submit': {'message':"Yes, I'm sure", 'url': admin_reverse('base', 'tosingleparent', args=[tm.pk])},
+          'actions': [link('No, take me back', admin_reverse('base', 'change', args=[tm.pk]), attrs={'class':'"button"'})],
         } 
         return render(request, 'taxonomy/delete_confirm_form.html', context)
 
