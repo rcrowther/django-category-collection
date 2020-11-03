@@ -1,5 +1,8 @@
 Django category collection
 ==========================
+
+    **This module is deprecated**It is replaced by far more limited and Django-like https://github.com/rcrowther/django-taxonomy. The repository will be retained in case anyone is using it , and because it contains some useful code.
+
 For Django, the Python-coded Web development framework.
 
 A collection modelling categories (sometimes known as 'taxonomies').
